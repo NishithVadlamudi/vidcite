@@ -166,18 +166,29 @@ def test_rerank_reorders_by_cross_encoder_score_and_keeps_cosine():
     assert out[0].score == 0.6  # cosine kept for the confidence gate
 
 
+class LimitCursor(FakeCursor):
+    """Honours the SQL limit, like the real database."""
+    def execute(self, sql, params): self.k = params["k"]
+    def fetchall(self): return super().fetchall()[:self.k]
+
+
+class LimitConn(FakeConn):
+    def cursor(self): return LimitCursor(self.rows)
+
+
 def test_retrieve_reranks_a_wider_pool_down_to_k():
+    from retrieval.rerank import RERANK_CANDIDATES
     rows = [p(i, score=0.7, text=f"chunk {i}.") for i in range(20)]
     seen = []
 
     def scores(pairs):
         seen.append(len(pairs))
-        return [float(text == "chunk 17.") for _, text in pairs]
+        return [float(text == "chunk 8.") for _, text in pairs]
 
-    out, found = retrieve(FakeConn(rows), "q?", k=5, embed=lambda q: [0.0], hybrid=False,
+    out, found = retrieve(LimitConn(rows), "q?", k=5, embed=lambda q: [0.0], hybrid=False,
                           rerank=True, score_pairs=scores)
-    assert seen == [20]  # reranker saw the 20-candidate pool, not just the top 5
-    assert out[0].chunk_index == 17 and len(out) == 5 and found
+    assert seen == [RERANK_CANDIDATES]  # reranker saw the candidate pool, not just the top 5
+    assert out[0].chunk_index == 8 and len(out) == 5 and found
 
 
 def test_rerank_with_nan_scores_keeps_retrieval_order(caplog):
@@ -186,3 +197,22 @@ def test_rerank_with_nan_scores_keeps_retrieval_order(caplog):
     out = rerank("q?", passages, k=2, score_pairs=lambda pairs: [float("nan")] * len(pairs))
     assert [x.chunk_index for x in out] == [0, 1]
     assert "non-finite" in caplog.text
+
+
+def test_windows_slide_one_sentence_at_a_time():
+    from retrieval.rerank import windows
+    assert windows("A. B. C. D.", size=3) == ["A. B. C.", "B. C. D."]
+    assert windows("A. B.", size=3) == ["A. B."]
+    assert len(windows(" ".join(f"w{i}" for i in range(60)), size=3)) == 2  # 4 word blocks -> 2 windows
+
+
+def test_rerank_scores_a_chunk_by_its_best_window():
+    """An answer in the middle of an unrelated chunk beats a chunk that's only vaguely on topic."""
+    from retrieval.rerank import rerank
+    mixed = p(1, text="Tokens cost money. Caching helps. You describe a tool by its name. Responses are stateful.")
+    on_topic = p(2, text="Tools matter. Tools are important. Tools need care.")
+
+    def scores(pairs):
+        return [5.0 if "describe a tool" in t else (1.0 if "Tools" in t else -3.0) for _, t in pairs]
+
+    assert rerank("How do you define a tool?", [on_topic, mixed], k=2, score_pairs=scores)[0].chunk_index == 1

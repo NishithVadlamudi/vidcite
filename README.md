@@ -69,15 +69,15 @@ Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
 
 **Expanded eval (4 talks, 53 answerable + 12 unanswerable):**
 
-| | Hybrid (Phase 4.1) | + cross-encoder reranker | + Whisper for Figma (`source=auto`) |
-|---|---|---|---|
-| hit@1 / hit@5 / MRR | 64% / 94% / 0.78 | 79% / 94% / 0.86 | 79% / **96%** / 0.87 |
-| Answered | 52/53 | 53/53 | 53/53 |
-| Cited the gold moment | 50/53 | 50/53 | **51/53** |
-| Cited link on time | 39/50 (78%) | 43/50 (86%) | 42/51 (82%) |
-| Unanswerable refused | 12/12 | 12/12 | 12/12 |
+| | Hybrid (Phase 4.1) | + cross-encoder reranker | + Whisper for Figma (`source=auto`) | + window (MaxP) reranking |
+|---|---|---|---|---|
+| hit@1 / hit@5 / MRR | 64% / 94% / 0.78 | 79% / 94% / 0.86 | 79% / 96% / 0.87 | **85% / 98% / 0.90** |
+| Answered | 52/53 | 53/53 | 53/53 | 53/53 |
+| Cited the gold moment | 50/53 | 50/53 | 51/53 | **52/53** |
+| Cited link on time | 39/50 (78%) | 43/50 (86%) | 42/51 (82%) | **45/52 (87%)** |
+| Unanswerable refused | 12/12 | 12/12 | 12/12 | 12/12 |
 
-Per talk (current): Postgres 17/17 gold citations, AI engineering 11/12, ChatGPT image tutorial 11/12,
+Per talk (current): Postgres 17/17 gold citations, AI engineering 12/12, ChatGPT image tutorial 11/12,
 Figma 12/12 (Whisper transcript) but only 7/12 links on time: mostly the 8 s lead-in plus answers that
 start mid-sentence (tuned on lecture talks; a tutorial-specific value isn't supported by 12 questions yet).
 
@@ -89,8 +89,9 @@ start mid-sentence (tuned on lecture talks; a tutorial-specific value isn't supp
 - `source=auto` (default): each video uses its Whisper transcript if you ran Whisper on it
   (`--source whisper`), otherwise its YouTube captions. Currently only the Figma tutorial (unpunctuated
   captions) uses Whisper.
-- A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, CPU, ~0.33 s per question) reranks the
-  top 20 fused candidates (`RERANK=0` disables it; `RERANK_MODEL=BAAI/bge-reranker-base` is ~2 points
+- A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, CPU, ~0.6 s per question) reranks the
+  top 10 fused candidates, scoring each chunk by its best 3-sentence window so an answer in the middle
+  of a mixed-topic chunk isn't diluted (`RERANK=0` disables it; `RERANK_MODEL=BAAI/bge-reranker-base` is ~2 points
   better on hit@1 but ~4x slower).
 - Citation links jump to the sentence that best matches the cited claim, estimated from its
   word offset within the chunk, minus an 8 s lead-in tuned on the dev split.

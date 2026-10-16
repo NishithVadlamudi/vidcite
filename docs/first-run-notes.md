@@ -60,6 +60,11 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
     but reading the five misses showed three different causes, and no change was supported by the data. Shipping a
     per-source lead-in would have raised the score without making the app better. (Entry 16)
 
+12. *A general fix for a specific failure.* One question regressed when the reranker was added. Reading it showed a
+    general mechanism: the answer sat mid-way through a mixed-topic chunk, and a cross-encoder trained on ~60-word
+    passages scores the whole ~230-word chunk, so it got diluted. Scoring each chunk by its best 3-sentence window
+    (MaxP) fixed it and improved the whole eval (hit@1 42 -> 45/53, gold citations 51 -> 52/53) with no losses. (Entry 17)
+
 **Deliberately deferred:** sponsor/outro chunks are indexed; tutorial link lead-in (needs more tutorial data);
 two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
 
@@ -670,3 +675,44 @@ genuinely gives more than one answer (the duplicate case).
 **Interview takeaway.** Read the failures before building the fix. My explanation fit the error *pattern*,
 but reading the five cases showed three different causes, and the data didn't support any change. Shipping a
 per-source lead-in would have improved the score without improving the app.
+
+## 17. "Define a tool": window (MaxP) reranking
+
+**Read the failure first.** "How do you define a tool for an LLM?" (gold 1:06, AI engineering talk) was outside
+the top 5 after reranking (search alone had it at rank 5; vector 7, keyword 3). The gold chunk (0:44-1:31)
+is mixed-topic: the answer ("You describe a tool by providing a name, description, and input parameters")
+starts at character 541 of 1,148, after context windows, token costs and OpenAI's responses API. The
+cross-encoder scored the whole chunk -2.70, against +4.45 for a chunk that is *about* tools throughout
+("Tool calls are very important..."), where Gemini found a partial answer in the MCP part ("a function with
+description and input schema").
+
+**Mechanism, not a quirk.** ms-marco-MiniLM was trained on short (~60-word) passages; our chunks are ~230
+words. Scoring a long chunk as one passage dilutes a mid-chunk answer. The standard fix is MaxP: score
+every window and keep the best.
+
+**Prototyped offline first** (no project code; same 53 questions, same fused pools), then chose on dev and
+confirmed on holdout:
+
+| Scoring | hit@1 | hit@5 | MRR | dev / holdout hit@1 | ms/question |
+|---|---|---|---|---|---|
+| whole chunk (was) | 42 | 51 | 0.869 | 26 / 16 | 376 |
+| 3-sentence windows, stride 1 | **45** | **52** | **0.905** | **29 / 16** | 1,078 |
+| 3-sentence, stride 2 | 43 | 51 | 0.884 | 27 / 16 | 515 |
+| 4-sentence, stride 2 | 43 | 50 | 0.874 | 28 / 15 | 593 |
+| 5-sentence, stride 3 | 43 | 52 | 0.883 | 29 / 14 | 494 |
+| 3-sentence stride 1, **top 10 candidates** | 45 | 52 | 0.905 | 29 / 16 | **598** |
+
+3-sentence/stride 1 and 5-sentence tied on dev; holdout picked 3-sentence (16 vs 14). Reranking only the top 10
+fused candidates gave identical results at ~half the cost (whole-chunk scoring was also identical at 10 vs 20).
+No question lost its top-5 place in any MaxP variant I shipped.
+
+**Shipped.** `retrieval/rerank.py`: `windows()` (3-sentence windows sliding by one; 15-word blocks for unpunctuated
+text, as for links), chunk score = max over its windows, `RERANK_CANDIDATES` 20 -> 10. NaN guard kept. 2 new
+tests (windows; mid-chunk answer beats a vaguely on-topic chunk). The pool-size test now uses a fake cursor that
+honours the SQL limit, like the real database. 62 tests pass.
+
+**End to end (65 questions):** answered 53/53, **cited gold 51 -> 52/53**, links on time 42/51 -> **45/52 (87%)**,
+unanswerable 12/12 refused. "Define a tool" now answers "a name, a description, and input parameters or an input
+schema" with a link at 0:58 (7 s before gold). Links: four improved (e.g. Postgres page size from 29 s late to
+on time), one got worse ("after recreating designs", now 24 s late). The only remaining gold-citation miss is
+"change part of an image" (the known metric artefact). Cost: ~+0.22 s per question.
