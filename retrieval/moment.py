@@ -14,6 +14,7 @@ import re
 
 SENTENCE_BREAK = re.compile(r"(?<=[.?!])\s+")
 LINK_LEAD_S = 8.0  # smallest of the tied-best leads: least unrelated speech for the viewer
+BLOCK_WORDS = 15   # unpunctuated chunks: candidate link points every ~15 words (~5 s)
 
 
 def sentence_times(passage) -> list[tuple[float, str]]:
@@ -21,6 +22,9 @@ def sentence_times(passage) -> list[tuple[float, str]]:
     if getattr(passage, "times", None):  # merged passage: already estimated per original chunk
         return passage.times
     sentences = [s for s in SENTENCE_BREAK.split(passage.text) if s.strip()]
+    if len(sentences) == 1:  # unpunctuated captions: use fixed word blocks instead
+        words = passage.text.split()
+        sentences = [" ".join(words[i:i + BLOCK_WORDS]) for i in range(0, len(words), BLOCK_WORDS)]
     total = sum(len(s.split()) for s in sentences)
     if not total:
         return []

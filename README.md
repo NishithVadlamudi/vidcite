@@ -67,6 +67,19 @@ Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
 | Abstained on unanswerable | 100% | 100% | 100% |
 | p50 latency (warm) | 882 ms | 1,163 ms | 1,023 ms |
 
+**Expanded eval (4 talks, 53 answerable + 12 unanswerable, same settings as Phase 4.1):**
+
+| Talk | Answered | Cited the gold moment | Link on time |
+|---|---|---|---|
+| Postgres internals | 17/17 | 17/17 | 15/17 |
+| AI engineering | 12/12 | 12/12 | 10/12 |
+| ChatGPT image tutorial | 11/12 | 10/12 | 9/10 |
+| Figma tutorial (unpunctuated captions) | 12/12 | 11/12 | 5/11 |
+| **All** | **52/53 (98%)** | **50/53 (94%)** | **39/50 (78%)** |
+
+Unanswerable: 12/12 refused. Retrieval: hit@5 94%, MRR 0.78. Unpunctuated captions are split into
+~5-15 s pseudo-sentences; their links are the weakest (time-based cuts), and Whisper is the fix if that matters.
+
 - Retrieval fuses vector search with Postgres full-text search (reciprocal rank fusion;
   `HYBRID=0` turns it off).
 - The confidence gate passes a question if the best cosine is at least `MIN_SCORE` *or* one
@@ -92,4 +105,5 @@ Analysis in `docs/first-run-notes.md`.
 - [x] Phase 3: eval set and metrics (`evals/`)
 - [x] Phase 4: keyword search + rank fusion, sentence-level citation links
 - [x] Phase 4.1: keyword gate, neighbour merging (measured, off), Whisper vs captions eval
-- [ ] Next: more talks and questions (37 questions over 2 talks is small)
+- [x] Eval expanded to 4 talks / 65 questions; chunker fallback for unpunctuated captions
+- [ ] Next: close the wording gap (query rewriting or a reranker), Whisper for unpunctuated videos

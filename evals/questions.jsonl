@@ -35,3 +35,31 @@
 {"question": "How do I deploy a Next.js app to Vercel?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
 {"question": "What table partitioning strategies does PostgreSQL support?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "holdout"}
 {"question": "How much does GPT-5 cost per million tokens?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
+{"question": "Can free ChatGPT users generate images, and how many?", "video_id": "EqEdnI3B23g", "gold_s": 84.56, "gold_phrase": "Free users can create images", "split": "dev"}
+{"question": "How much does ChatGPT Plus cost for image generation?", "video_id": "EqEdnI3B23g", "gold_s": 95.92, "gold_phrase": "plus is $20 a month", "split": "holdout"}
+{"question": "What is the five-part formula for writing an image prompt?", "video_id": "EqEdnI3B23g", "gold_s": 174.32, "gold_phrase": "Here's a simple formula that you can follow", "split": "dev"}
+{"question": "Why is ChatGPT better than other AI tools at putting text in images?", "video_id": "EqEdnI3B23g", "gold_s": 234.48, "gold_phrase": "It can put text in images", "split": "dev"}
+{"question": "How do I make sure ChatGPT uses my exact wording in an image?", "video_id": "EqEdnI3B23g", "gold_s": 298.4, "gold_phrase": "put the exact text that you want inside quotation marks", "split": "holdout"}
+{"question": "What should a prompt for a photorealistic image mention?", "video_id": "EqEdnI3B23g", "gold_s": 340.16, "gold_phrase": "For photorealistic image, mention the camera", "split": "dev"}
+{"question": "How do I get a transparent background for a logo?", "video_id": "EqEdnI3B23g", "gold_s": 410.72, "gold_phrase": "Just add transparent PNG background", "split": "dev"}
+{"question": "How can I use my exact brand colors in a generated image?", "video_id": "EqEdnI3B23g", "gold_s": 416.32, "gold_phrase": "You can use hex codes", "split": "holdout"}
+{"question": "Can I change part of a generated image without starting over?", "video_id": "EqEdnI3B23g", "gold_s": 467.6, "gold_phrase": "You can edit your images just by talking", "split": "dev"}
+{"question": "What does the select tool do in ChatGPT image editing?", "video_id": "EqEdnI3B23g", "gold_s": 518.56, "gold_phrase": "There's also a select tool", "split": "dev"}
+{"question": "Which model should I use for complex multi-step image instructions?", "video_id": "EqEdnI3B23g", "gold_s": 698.8, "gold_phrase": "for complex projects, try using the 03 model", "split": "holdout"}
+{"question": "How long does ChatGPT take to generate an image?", "video_id": "EqEdnI3B23g", "gold_s": 766.72, "gold_phrase": "it does take about 30 seconds to a minute", "split": "dev"}
+{"question": "What are the advantages of Figma for a beginner?", "video_id": "FTFaQWZBqQ8", "gold_s": 25.04, "gold_phrase": "it has a few advantages", "split": "dev"}
+{"question": "What is the best way for a complete beginner to start practicing UI design?", "video_id": "FTFaQWZBqQ8", "gold_s": 116.48, "gold_phrase": "the best way for you to get started is actually to copy other designs", "split": "holdout"}
+{"question": "Where can I find free Figma templates to practice with?", "video_id": "FTFaQWZBqQ8", "gold_s": 188.16, "gold_phrase": "called literally figmaresources.com", "split": "dev"}
+{"question": "How do I make an editable copy of someone else's Figma file?", "video_id": "FTFaQWZBqQ8", "gold_s": 252.64, "gold_phrase": "duplicate to your drafts", "split": "dev"}
+{"question": "What is the keyboard shortcut for the frame tool in Figma?", "video_id": "FTFaQWZBqQ8", "gold_s": 339.04, "gold_phrase": "or you hit f on your keyboard", "split": "holdout"}
+{"question": "How do I draw a perfect circle in Figma?", "video_id": "FTFaQWZBqQ8", "gold_s": 634.4, "gold_phrase": "hold shift on your keyboard as you're dragging", "split": "dev"}
+{"question": "How do I round only the top corners of a rectangle?", "video_id": "FTFaQWZBqQ8", "gold_s": 594.08, "gold_phrase": "click on independent corners", "split": "dev"}
+{"question": "How do I see the distance between two elements in Figma?", "video_id": "FTFaQWZBqQ8", "gold_s": 690.4, "gold_phrase": "hold option on a mac or alt", "split": "holdout"}
+{"question": "Where can I get free icons for my designs?", "video_id": "FTFaQWZBqQ8", "gold_s": 761.04, "gold_phrase": "google free figma icons", "split": "dev"}
+{"question": "Where can I find free images to use in a design?", "video_id": "FTFaQWZBqQ8", "gold_s": 890.8, "gold_phrase": "one good website is called unsplash", "split": "dev"}
+{"question": "What is a quick way to duplicate an element in Figma?", "video_id": "FTFaQWZBqQ8", "gold_s": 1258.8, "gold_phrase": "hold option or alt and that'll also duplicate", "split": "holdout"}
+{"question": "What should I do after I can recreate existing designs?", "video_id": "FTFaQWZBqQ8", "gold_s": 1353.28, "gold_phrase": "the next step from this would be to start designing", "split": "dev"}
+{"question": "How do I set up auto layout in Figma?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
+{"question": "How do I export a Figma design to React code?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "holdout"}
+{"question": "What resolution are images generated by ChatGPT?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
+{"question": "How do I create an animated GIF with ChatGPT?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}

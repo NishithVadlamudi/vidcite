@@ -4,12 +4,22 @@ Input: words like {"text": "Hello", "start": 0.0, "end": 0.4} (Whisper output).
 Output: chunks of roughly `target_s` seconds that only break at sentence ends
 or long pauses, never longer than `max_s`, each overlapping the previous chunk
 by one sentence so answers that span a boundary still appear whole.
+
+Some YouTube auto-captions have no punctuation at all, and caption word timings
+carry no pauses (each word ends where the next starts). Splitting those at "sentence
+ends or long pauses" only produces forced cuts at max_s, so unpunctuated transcripts
+use pseudo-sentences instead: cut at the longest pause 5-15 s in, which with no pause
+information means roughly every 5 s.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 
 SENTENCE_END = (".", "?", "!")
+# Sentence-end marks per word below which a transcript counts as unpunctuated.
+# Punctuated captions and Whisper run ~0.06-0.09; the unpunctuated Figma captions were 0.000.
+MIN_PUNCTUATION_RATE = 0.02
+PSEUDO_SENTENCE_S = (5.0, 15.0)
 
 
 @dataclass
@@ -57,6 +67,31 @@ def split_sentences(words: list[dict], pause_s: float = 0.6, max_s: float = 75.0
     return sentences
 
 
+def is_punctuated(words: list[dict]) -> bool:
+    ends = sum(w["text"].strip().endswith(SENTENCE_END) for w in words)
+    return ends / len(words) >= MIN_PUNCTUATION_RATE
+
+
+def split_pseudo_sentences(words: list[dict], min_s: float = PSEUDO_SENTENCE_S[0],
+                           max_s: float = PSEUDO_SENTENCE_S[1]) -> list[Sentence]:
+    """For unpunctuated transcripts: cut each pseudo-sentence at the longest pause
+    between min_s and max_s after it starts (earliest on ties)."""
+    sentences: list[Sentence] = []
+    i = 0
+    while i < len(words):
+        j = i  # last word that still fits within max_s
+        while j + 1 < len(words) and words[j + 1]["end"] - words[i]["start"] <= max_s:
+            j += 1
+        if j + 1 >= len(words):
+            sentences.append(Sentence(words[i:]))
+            break
+        candidates = [k for k in range(i, j) if words[k]["end"] - words[i]["start"] >= min_s] or [j]
+        cut = max(candidates, key=lambda k: words[k + 1]["start"] - words[k]["end"])
+        sentences.append(Sentence(words[i:cut + 1]))
+        i = cut + 1
+    return sentences
+
+
 def chunk_words(
     words: list[dict],
     target_s: float = 45.0,
@@ -69,7 +104,10 @@ def chunk_words(
     if not words:
         return []
 
-    sentences = split_sentences(words, pause_s=pause_s, max_s=max_s)
+    if is_punctuated(words):
+        sentences = split_sentences(words, pause_s=pause_s, max_s=max_s)
+    else:
+        sentences = split_pseudo_sentences(words)
     chunks: list[Chunk] = []
     current: list[Sentence] = []
     new_in_current = False  # does `current` hold anything beyond the overlap sentence?

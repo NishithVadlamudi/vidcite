@@ -14,6 +14,7 @@ from pathlib import Path
 from ingest.captions import parse_json3
 from ingest.chunk import chunk_words, format_ts
 from ingest.download import download_audio, download_captions, fetch_metadata
+from yt_dlp.utils import DownloadError
 
 CHUNK_DIR = Path("data/chunks")
 
@@ -73,7 +74,8 @@ def main() -> None:
         for vid in args.video_ids:
             try:
                 ingest(vid, args.source, own=args.own, conn=conn)
-            except (PermissionError, FileNotFoundError) as e:
+            except (PermissionError, FileNotFoundError, DownloadError) as e:
+                # One bad video (not CC, no captions, YouTube 429) shouldn't abort the batch.
                 print(f"SKIPPED {vid}: {e}")
     finally:
         if conn is not None:

@@ -145,3 +145,11 @@ def test_weak_cosine_passes_gate_when_every_word_matches():
     assert found is True
     _, found = retrieve(KeywordConn([lsn]), "What is an LSN?", embed=lambda q: [0.0], hybrid=False)
     assert found is False  # vector-only: no keyword evidence, 0.51 < 0.55
+
+
+def test_unpunctuated_chunk_is_split_into_word_blocks():
+    words = " ".join(f"w{i}" for i in range(45))  # no punctuation, 45 words over 45 s
+    chunk = Passage("vidA", "talk", 0, 0.0, 45.0, words, 0.9)
+    times = sentence_times(chunk)
+    assert [t for t, _ in times] == [0.0, 15.0, 30.0]
+    assert times[1][1].startswith("w15 ")

@@ -1,4 +1,4 @@
-from ingest.chunk import chunk_words, format_ts, split_sentences
+from ingest.chunk import chunk_words, format_ts, is_punctuated, split_pseudo_sentences, split_sentences
 
 
 def make_words(sentences, word_s=0.4, gap_s=0.1, pause_between=0.2):
@@ -96,3 +96,37 @@ def test_format_ts():
     assert format_ts(5) == "0:05"
     assert format_ts(1421.3) == "23:41"
     assert format_ts(3725) == "1:02:05"
+
+
+# --- unpunctuated transcripts (some YouTube auto-captions) ---------------------
+
+def unpunctuated(n, word_s=0.3):
+    """Caption-style words: no punctuation, each word ends where the next starts."""
+    return [{"text": f"w{i}", "start": round(i * word_s, 2), "end": round((i + 1) * word_s, 2)} for i in range(n)]
+
+
+def test_punctuation_detection():
+    assert is_punctuated(make_words(ten_word_sentences(5)))
+    assert not is_punctuated(unpunctuated(500))
+
+
+def test_pseudo_sentences_stay_between_5_and_15_seconds():
+    sents = split_pseudo_sentences(unpunctuated(1000))  # 300 s
+    for s in sents[:-1]:
+        assert 5.0 <= s.end - s.start <= 15.0
+
+
+def test_pseudo_sentences_prefer_the_longest_pause():
+    words = unpunctuated(60)  # 18 s
+    for w in words[30:]:  # a 1 s pause after word 29 (9 s in)
+        w["start"] += 1.0
+        w["end"] += 1.0
+    assert split_pseudo_sentences(words)[0].words[-1]["text"] == "w29"
+
+
+def test_unpunctuated_transcript_gets_normal_chunks_with_overlap():
+    chunks = chunk_words(unpunctuated(2000))  # 600 s, like the Figma captions
+    for c in chunks[:-1]:
+        assert 45 <= c.end_s - c.start_s <= 75
+    for a, b in zip(chunks, chunks[1:]):
+        assert b.start_s < a.end_s  # one pseudo-sentence of overlap

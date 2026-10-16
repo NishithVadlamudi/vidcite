@@ -45,8 +45,8 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
    (93% -> 83% on time) with no gain in answers. Kept it off and fixed the visible symptom (duplicate
    links) in the CLI instead. Similarly, Whisper tied with free captions, so captions stay the default. (Entry 12)
 
-**Deliberately deferred:** sponsor/outro chunks are indexed; the eval set is small (37 questions,
-2 talks). Each fix should be measured with the eval.
+**Deliberately deferred:** sponsor/outro chunks are indexed; "summary" chunks outrank specific
+moments (seen on the ChatGPT tutorial); two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
 
 ---
 
@@ -425,3 +425,96 @@ M2 GPU, roughly 8x real time). My earlier estimate of 1-2 min per video minute w
 - **Decision: captions stay the default** (free, instant); Whisper is for videos without captions.
 
 52 tests pass (6 new: merging, all_terms through RRF, keyword gate, per-chunk times, gate metric).
+
+## 13. Adding four more talks: YouTube 429s and unpunctuated captions
+
+**What happened.** `ingest.cli` with four new IDs ingested the first (Figma UI tutorial), then crashed
+on the second with `HTTP Error 429: Too Many Requests` while downloading captions. Videos 3 and 4 were
+never attempted.
+
+**Why.** Two separate problems. (1) YouTube rate-limits the caption (timedtext) endpoint per machine,
+and this machine had made many requests that day. (2) The CLI only treated `PermissionError` (not CC)
+and `FileNotFoundError` (no captions) as per-video failures; any other yt-dlp `DownloadError`
+propagated and aborted the whole batch.
+
+**What we changed.** `ingest/cli.py` also catches yt-dlp's `DownloadError` and prints `SKIPPED <id>`,
+so one bad video doesn't abort the batch. Retried the rest one at a time, 60 s apart: the ChatGPT image
+tutorial went in, and two still got 429 (being retried again after a 15-minute wait). pytest 52/52.
+
+**Suspicious: the Figma captions have no punctuation.** Only 2 of 4,212 words end in `.?!`, so
+the chunker's sentence splitter falls back to pauses (>= 0.6 s), and this speaker rarely pauses.
+Most "sentences" are forced cuts at the 75 s cap: chunks average 64 s, are cut mid-sentence, get no
+overlap (the overlap sentence is longer than the 45 s target, so it's dropped), and there's a 1 s fragment.
+Sentence-level citation links can't work either: one "sentence" per chunk means links fall back to the chunk start.
+
+**Decision: chunker fallback for unpunctuated transcripts (option A).** Compared against Whisper for
+this video only (Figma would then only be searchable under `source=whisper`, because the app queries one
+source at a time) and Whisper for every talk (about 10 min of transcription plus six YouTube audio
+downloads while being rate-limited). A was the only option that kept Figma answerable without changing
+the default source or downloading more from YouTube, and it fixes any future unpunctuated video.
+
+**A finding while simulating it: captions carry no pause information.** `parse_json3` ends each word
+where the next begins, so the median gap in the Figma captions is 0.00 s (8 of 4,212 gaps are >= 0.15 s).
+The chunker's "long pause = boundary" rule only ever fires on Whisper transcripts. So for captions,
+"cut at the longest pause" just means "cut by time".
+
+**What we changed.**
+- `ingest/chunk.py`: `is_punctuated()` (sentence-end marks per word; punctuated transcripts run
+  0.066-0.092, Figma 0.000, threshold 0.02). Unpunctuated transcripts use `split_pseudo_sentences()`:
+  cut at the longest pause 5-15 s in (earliest on ties, so about every 5 s without pause info).
+  Punctuated transcripts take exactly the old path. 4 new tests.
+- `retrieval/moment.py`: chunk text with no sentence breaks is split into 15-word blocks (~5 s) for
+  link estimation. Inserting fake punctuation into the stored transcript was rejected. 1 new test.
+- Re-ingested only Figma: 23 chunks (1/64/75 s, no overlap) -> 36 chunks (23/47/54 s, 6.4 s overlap),
+  link points about every 4.7 s. 57 tests pass.
+- Known limit: cuts are time-based, so chunks still start and end mid-sentence for this kind of video.
+  Whisper (`--source whisper`) is the upgrade path if precise boundaries matter.
+
+**Regression check with 4 talks indexed** (original 37 questions): hit@1 76% -> 72%, hit@5 100%,
+MRR 0.87 -> 0.86, sentence links 86% on time. The top result still comes from the right talk every
+time; the shifts are between neighbouring chunks of the same talk (keyword candidates change with corpus size).
+
+**The two remaining videos (`eI0NM5hM-4o`, `48b5kLp36T8`) were left out.** Caption downloads got 429
+three times over ~40 minutes, including after a 15-minute wait, so the block lasts hours, not minutes.
+Decided to continue with 4 talks rather than keep hitting YouTube (or switch those two to Whisper, which
+would also need YouTube audio downloads and would make them searchable only under `source=whisper`).
+They can be added later with the normal `python -m ingest.cli <id> --source youtube`. Nothing partial
+was stored: a 429 happens before chunking, and storage is one transaction per video.
+
+**Expanded eval: 65 questions over 4 talks.** I drafted 28 new questions (12 per new talk + 4
+near-topic unanswerable) with gold phrases located in the caption timings; the user reviewed them.
+Existing questions kept their splits; new ones continue the every-third-is-holdout rule (44 dev, 21 holdout).
+
+*Retrieval* (53 answerable): hit@1 64%, hit@5 94%, MRR 0.78, sentence links on time 82%. The original
+29 were unchanged (72% / 100% / 0.86 / 86%); the drop is all in the new talks:
+- ChatGPT image tutorial: hit@1 42%, hit@5 83%, MRR 0.58. Its wrap-up chunk (12:04-12:50) restates
+  most of the talk's themes and ranks first for 4 different questions. One real wording gap ("my exact
+  wording" vs "put the exact text ... inside quotation marks"). One near miss is a metric artefact: gold
+  at 7:47 sits 5 s before the neighbouring chunk that is ranked first.
+- Figma: hit@5 92%, but sentence links only 55% on time (time-based cuts, as expected).
+
+*End to end*: the first `--llm` run lost **16 of 65 calls to Gemini 503 "high demand"** (spread across
+the run; 0 errors earlier the same day with the same model). Re-ran only the failed rows with a
+12 s gap (14 recovered, then the last 2), merging into the same results file:
+
+| Talk | Answered | Cited gold | Links on time |
+|---|---|---|---|
+| Postgres | 17/17 | 17/17 | 15/17 |
+| AI engineering | 12/12 | 12/12 | 10/12 |
+| ChatGPT images | 11/12 | 10/12 | 9/10 |
+| Figma | 12/12 | 11/12 | 5/11 |
+| All | 52/53 (98%) | 50/53 (94%) | 39/50 (78%) |
+
+Unanswerable refused 12/12, including the 4 new near-topic ones (Figma auto layout, Figma -> React, image
+resolution, animated GIFs) and the old "GPT-5 per-token pricing", which now sits next to a talk that
+*does* quote ChatGPT Plus prices. Holdout: 14/16 cited gold vs 34/35 on dev, which is small enough to be noise.
+p50 latency was 4.1 s, inflated by the SDK's internal 503 retries during the busy period (1.0 s on a quiet run).
+
+The 3 misses match the retrieval misses: "exact wording" (NOT_FOUND: right chunk never retrieved),
+"change part of an image" (cited the neighbouring chunk), "distance between elements in Figma"
+(wrong chunk; the answer sits mid-way through an unpunctuated chunk).
+
+**Lesson.** A bigger, more varied eval found a failure mode the first 37 questions couldn't: a
+"summary" chunk that restates the whole talk outranks the specific moment. And a provider
+outage can silently cut a quarter of an eval run, so the eval counts LLM errors separately instead of
+scoring them as wrong answers. That made "retry only the failures" possible.
