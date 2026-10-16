@@ -716,3 +716,41 @@ unanswerable 12/12 refused. "Define a tool" now answers "a name, a description, 
 schema" with a link at 0:58 (7 s before gold). Links: four improved (e.g. Postgres page size from 29 s late to
 on time), one got worse ("after recreating designs", now 24 s late). The only remaining gold-citation miss is
 "change part of an image" (the known metric artefact). Cost: ~+0.22 s per question.
+
+## 18. Multiple gold moments per question (eval-only change)
+
+**Why.** Two "misses" were labelling artefacts, not app errors: "Can I change part of a generated image
+without starting over?" (the answer continues across a chunk boundary, and the gold second sat in the
+earlier chunk) and "What is a quick way to duplicate an element in Figma?" (the talk gives two methods;
+the gold label had only one).
+
+**Rule, written down before adding labels** (so the score can't be quietly raised): an extra gold moment is
+allowed only where the talk itself either (a) continues the same answer across a chunk boundary or (b) gives a
+second, independent answer. Each one records its `gold_phrase` (located in the caption timings like every other
+label) and a `why`, and the user approves it.
+
+**Code (`evals/metrics.py`, `evals/run.py`).** Optional `also_gold: [{video_id, gold_s, gold_phrase, why}]`.
+- A retrieved passage or citation counts as correct if it contains *any* gold moment.
+- Link error is measured against the gold moment in that passage *nearest to where the link lands*. My first
+  version used the first-listed gold, which would still have scored a link to the command-C/V sentence against
+  the option-drag moment 12 s later; caught by reading the evidence before running anything.
+- Regression check: with no `also_gold` labels, the eval reproduced the previous numbers exactly.
+- 4 new tests (gold list order, any-gold matching, single-gold equivalence with the old function, nearest-gold link). 66 pass.
+
+**Labels added (user-approved):**
+- change image: + 7:53 "You just tell it what to change" (same answer continuing; it sits in the overlap with the next chunk)
+- duplicate: + 20:46 "you can copy an element real quick ... command C command V" (second method)
+
+**Retrieval effect:** hit@5 98% -> **100%** (change image: not retrieved -> rank 2), sentence links 81% -> 83%
+on time, hit@1 unchanged at 85%, MRR 0.90 -> 0.91.
+
+**End to end: pending (free-tier daily quota).** The `--llm` run stopped short: 21 calls returned
+`429 RESOURCE_EXHAUSTED ... generate_content_free_tier_requests, limit: 500, model: gemini-3.5-flash-lite`
+("retry in 3h25m"), plus one 503. The free tier is **500 requests/day** for this model, not the 1,500
+a third-party article quoted; a full end-to-end eval uses ~70-80 calls with 503 retries, so about six runs
+a day. The app's own questions fail the same way until the reset (the CLI prints the clean `LLMUnavailable`
+message from entry 9a).
+- Partial run (43/65 questions): 33/33 answerable cited a gold moment, 30/33 links on time, 9/9 unanswerable
+  refused. The two relabelled questions were among the 22 not yet answered.
+- Results file: `data/evals/20261016-132402-auto-hybrid-mergeoff-rerankms-marco-MiniLM-L-6-v2.json`. After the reset,
+  re-run only its failed rows with the retry helper (same recorded settings) and complete this entry.

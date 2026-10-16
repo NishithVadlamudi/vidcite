@@ -18,7 +18,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from evals.metrics import (best_threshold, first_hit_rank, gate_scores, link_error, link_stats,
+from evals.metrics import (best_threshold, first_hit, gate_scores, gold_moments, link_error, link_stats,
+                           matched_gold, nearest_gold,
                            on_time, summarize_retrieval)
 from ingest.chunk import format_ts
 
@@ -48,17 +49,24 @@ def run_retrieval(conn, questions, source: str, k: int, hybrid: bool, merge: boo
                "context_s": sum(p.end_s - p.start_s for p in passages),
                "top": [(p.video_id, p.start_s, p.end_s, round(p.score, 3)) for p in passages]}
         if row["answerable"]:
-            rank = first_hit_rank(passages, q["video_id"], q["gold_s"])
+            golds = gold_moments(q)
+            rank, _ = first_hit(passages, golds)
             row["rank"] = rank
             row["link_err"] = row["moment_err"] = None
             if rank:
                 hit = passages[rank - 1]
-                row["link_err"] = link_error(hit.start_s, q["gold_s"])
+                row["link_err"] = link_error(hit.start_s, nearest_gold(hit, golds, hit.start_s))
                 # Sentence-level link, using the question as the claim (no LLM needed).
                 moment = best_moment(hit, embed_query(q["question"]), embed_texts)
-                row["moment_err"] = link_error(moment, q["gold_s"])
+                row["moment_err"] = link_error(moment, nearest_gold(hit, golds, moment))
         rows.append(row)
     return rows
+
+
+class _Span:
+    """Lets a citation dict be checked with the same `contains` as a passage."""
+    def __init__(self, c: dict):
+        self.video_id, self.start_s, self.end_s = c["video_id"], c["start_s"], c["end_s"]
 
 
 def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool, merge: bool,
@@ -75,13 +83,13 @@ def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool, merge
         except LLMUnavailable as e:
             row["llm"] = {"error": str(e)}
             continue
-        cited_ok = [c for c in r["citations"]
-                    if row["answerable"] and c["video_id"] == row["video_id"]
-                    and c["start_s"] <= row["gold_s"] <= c["end_s"]]
+        golds = gold_moments(row)
+        cited_ok = [c for c in r["citations"] if matched_gold(_Span(c), golds) is not None]
+        first = cited_ok[0] if cited_ok else None
         row["llm"] = {"found": r["found"], "answer": r["answer"], "citations": r["citations"],
                       "cited_gold": bool(cited_ok), "latency_ms": r["latency_ms"],
-                      "chunk_link_err": link_error(cited_ok[0]["start_s"], row["gold_s"]) if cited_ok else None,
-                      "link_err": link_error(cited_ok[0]["link_s"], row["gold_s"]) if cited_ok else None}
+                      "chunk_link_err": link_error(first["start_s"], nearest_gold(_Span(first), golds, first["start_s"])) if first else None,
+                      "link_err": link_error(first["link_s"], nearest_gold(_Span(first), golds, first["link_s"])) if first else None}
 
 
 def pct(x) -> str:

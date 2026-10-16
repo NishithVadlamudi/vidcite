@@ -1,7 +1,10 @@
 """Eval metrics as pure functions, so they can be tested without a database.
 
 A passage is correct when it comes from the gold video and its time span contains
-the gold second (the moment the answer is spoken). Separately, a citation link is
+the gold second (the moment the answer is spoken). A question may list extra correct
+moments in `also_gold`, only where the talk itself gives a second answer or continues
+the same answer across a chunk boundary; any gold moment then counts, and link timing
+is measured against the contained gold moment nearest to where the link lands. Separately, a citation link is
 "on time" when it lands at most TOLERANCE_S before that moment or at most
 LATE_TOLERANCE_S after it. Late is worse than early: the viewer misses the start
 of the answer, so the window is lopsided.
@@ -24,6 +27,37 @@ def first_hit_rank(passages, video_id: str, gold_s: float) -> int | None:
         if contains(p, video_id, gold_s):
             return rank
     return None
+
+
+def gold_moments(question: dict) -> list[tuple[str, float]]:
+    """[(video_id, gold_s), ...]: the primary gold moment first, then any `also_gold`."""
+    if question.get("video_id") is None:
+        return []
+    return [(question["video_id"], question["gold_s"])] + [
+        (g["video_id"], g["gold_s"]) for g in question.get("also_gold", [])]
+
+
+def matched_gold(passage, golds: list[tuple[str, float]]) -> float | None:
+    """The first gold second this passage (or citation) contains, or None."""
+    for video_id, gold_s in golds:
+        if contains(passage, video_id, gold_s):
+            return gold_s
+    return None
+
+
+def nearest_gold(passage, golds: list[tuple[str, float]], t: float) -> float | None:
+    """Of the gold seconds this passage contains, the one closest to t (where a link lands)."""
+    inside = [g for v, g in golds if contains(passage, v, g)]
+    return min(inside, key=lambda g: abs(g - t)) if inside else None
+
+
+def first_hit(passages, golds: list[tuple[str, float]]) -> tuple[int | None, float | None]:
+    """(1-based rank of the first passage containing any gold moment, that gold second)."""
+    for rank, p in enumerate(passages, start=1):
+        g = matched_gold(p, golds)
+        if g is not None:
+            return rank, g
+    return None, None
 
 
 def link_error(start_s: float, gold_s: float) -> float:

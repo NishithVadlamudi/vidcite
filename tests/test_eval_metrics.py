@@ -1,5 +1,6 @@
-from evals.metrics import (best_threshold, contains, first_hit_rank, gate_scores,
-                           link_error, on_time, summarize_retrieval)
+from evals.metrics import (best_threshold, contains, first_hit, first_hit_rank, gate_scores,
+                           gold_moments, link_error, matched_gold, nearest_gold, on_time,
+                           summarize_retrieval)
 from retrieval.search import Passage
 
 P = [
@@ -75,3 +76,32 @@ def test_keyword_pass_overrides_the_cutoff():
             {"answerable": False, "top_score": 0.50}]
     g = gate_scores(rows, 0.55)
     assert g["pass_rate"] == 1.0 and g["reject_rate"] == 1.0
+
+
+# --- multiple gold moments ----------------------------------------------------
+
+def test_gold_moments_lists_primary_first():
+    q = {"video_id": "vidA", "gold_s": 190.0, "also_gold": [{"video_id": "vidB", "gold_s": 920.0}]}
+    assert gold_moments(q) == [("vidA", 190.0), ("vidB", 920.0)]
+    assert gold_moments({"video_id": "vidA", "gold_s": 5.0}) == [("vidA", 5.0)]
+    assert gold_moments({"video_id": None, "gold_s": None}) == []
+
+
+def test_first_hit_accepts_any_gold_and_reports_which():
+    golds = [("vidA", 500.0), ("vidB", 920.0)]  # primary gold not retrieved at all
+    assert first_hit(P, golds) == (3, 920.0)
+    assert matched_gold(P[0], golds) is None
+    assert first_hit(P, [("vidC", 1.0)]) == (None, None)
+
+
+def test_single_gold_matches_old_behaviour():
+    for gold_s in (130.0, 162.0, 190.0, 999.0):
+        rank, _ = first_hit(P, [("vidA", gold_s)])
+        assert rank == first_hit_rank(P, "vidA", gold_s)
+
+
+def test_link_error_uses_the_gold_nearest_the_link():
+    golds = [("vidA", 150.0), ("vidA", 125.0)]  # two answers in the same chunk (120-165.5)
+    assert nearest_gold(P[0], golds, 124.0) == 125.0  # link near the second-listed answer
+    assert nearest_gold(P[0], golds, 149.0) == 150.0
+    assert nearest_gold(P[2], golds, 900.0) is None

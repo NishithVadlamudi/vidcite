@@ -53,7 +53,8 @@ Every third question is a holdout: tune on dev, report on holdout.
 
 ```bash
 python -m evals.run          # retrieval hit@1/hit@5/MRR, link accuracy, MIN_SCORE sweep (no LLM calls)
-python -m evals.run --llm    # also end-to-end answers, citations and abstention (rate-limited)
+python -m evals.run --llm    # also end-to-end answers, citations and abstention (rate-limited;
+                             # ~70-80 Gemini calls, free tier allows 500/day)
 ```
 
 Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
@@ -77,7 +78,11 @@ Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
 | Cited link on time | 39/50 (78%) | 43/50 (86%) | 42/51 (82%) | **45/52 (87%)** |
 | Unanswerable refused | 12/12 | 12/12 | 12/12 | 12/12 |
 
-Per talk (current): Postgres 17/17 gold citations, AI engineering 12/12, ChatGPT image tutorial 11/12,
+With multiple gold moments allowed where the talk justifies them (2 questions; see notes entry 18):
+retrieval hit@5 **100%**, MRR 0.91, sentence links 83% on time. End-to-end numbers for this change are
+pending: the run hit the Gemini free tier's 500 requests/day limit.
+
+Per talk (before multi-gold): Postgres 17/17 gold citations, AI engineering 12/12, ChatGPT image tutorial 11/12,
 Figma 12/12 (Whisper transcript) but only 7/12 links on time: mostly the 8 s lead-in plus answers that
 start mid-sentence (tuned on lecture talks; a tutorial-specific value isn't supported by 12 questions yet).
 
