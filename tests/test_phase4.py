@@ -153,3 +153,36 @@ def test_unpunctuated_chunk_is_split_into_word_blocks():
     times = sentence_times(chunk)
     assert [t for t, _ in times] == [0.0, 15.0, 30.0]
     assert times[1][1].startswith("w15 ")
+
+
+# --- reranking -----------------------------------------------------------------
+
+def test_rerank_reorders_by_cross_encoder_score_and_keeps_cosine():
+    from retrieval.rerank import rerank
+    passages = [p(1, score=0.9, text="summary of everything."), p(2, score=0.6, text="the exact answer.")]
+    scores = lambda pairs: [5.0 if "exact" in text else 1.0 for _, text in pairs]
+    out = rerank("q?", passages, k=1, score_pairs=scores)
+    assert [x.chunk_index for x in out] == [2]
+    assert out[0].score == 0.6  # cosine kept for the confidence gate
+
+
+def test_retrieve_reranks_a_wider_pool_down_to_k():
+    rows = [p(i, score=0.7, text=f"chunk {i}.") for i in range(20)]
+    seen = []
+
+    def scores(pairs):
+        seen.append(len(pairs))
+        return [float(text == "chunk 17.") for _, text in pairs]
+
+    out, found = retrieve(FakeConn(rows), "q?", k=5, embed=lambda q: [0.0], hybrid=False,
+                          rerank=True, score_pairs=scores)
+    assert seen == [20]  # reranker saw the 20-candidate pool, not just the top 5
+    assert out[0].chunk_index == 17 and len(out) == 5 and found
+
+
+def test_rerank_with_nan_scores_keeps_retrieval_order(caplog):
+    from retrieval.rerank import rerank
+    passages = [p(i) for i in range(4)]
+    out = rerank("q?", passages, k=2, score_pairs=lambda pairs: [float("nan")] * len(pairs))
+    assert [x.chunk_index for x in out] == [0, 1]
+    assert "non-finite" in caplog.text

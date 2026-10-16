@@ -5,6 +5,7 @@
     python -m evals.run --source whisper      # compare transcript sources
     python -m evals.run --retrieval hybrid    # vector + keyword search fused with RRF
     python -m evals.run --merge on            # join adjacent retrieved chunks
+    python -m evals.run --rerank on           # cross-encoder reranking (model: RERANK_MODEL env var)
 
 The MIN_SCORE cutoff is tuned on the dev split and reported on the holdout split,
 so the holdout number is an honest estimate. Raw results go to data/evals/.
@@ -30,7 +31,7 @@ def load_questions() -> list[dict]:
     return [json.loads(line) for line in QUESTIONS.read_text().splitlines() if line.strip()]
 
 
-def run_retrieval(conn, questions, source: str, k: int, hybrid: bool, merge: bool) -> list[dict]:
+def run_retrieval(conn, questions, source: str, k: int, hybrid: bool, merge: bool, rerank: bool) -> list[dict]:
     from ingest.embed import QUERY_DEVICE, embed_passages, embed_query, get_model
     from retrieval.moment import best_moment
     from retrieval.search import retrieve, top_score
@@ -39,7 +40,7 @@ def run_retrieval(conn, questions, source: str, k: int, hybrid: bool, merge: boo
     rows = []
     for q in questions:
         passages, _ = retrieve(conn, q["question"], k=k, source=source, min_score=-1.0,
-                               hybrid=hybrid, merge=merge)
+                               hybrid=hybrid, merge=merge, rerank=rerank)
         row = {**q, "answerable": q["video_id"] is not None,
                "top_score": top_score(passages) if passages else 0.0,
                "keyword_pass": any(p.all_terms for p in passages),
@@ -60,7 +61,8 @@ def run_retrieval(conn, questions, source: str, k: int, hybrid: bool, merge: boo
     return rows
 
 
-def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool, merge: bool) -> None:
+def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool, merge: bool,
+            rerank: bool = False) -> None:
     """Adds the full answer to each row. Sleeps between calls for free-tier rate limits."""
     from api.answer import answer_question
     from api.llm import LLMUnavailable
@@ -69,7 +71,7 @@ def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool, merge
         if i:
             time.sleep(delay_s)
         try:
-            r = answer_question(conn, row["question"], source=source, k=k, hybrid=hybrid, merge=merge)
+            r = answer_question(conn, row["question"], source=source, k=k, hybrid=hybrid, merge=merge, rerank=rerank)
         except LLMUnavailable as e:
             row["llm"] = {"error": str(e)}
             continue
@@ -162,30 +164,37 @@ def main() -> None:
     p.add_argument("--retrieval", default=None, choices=["vector", "hybrid"],
                    help="default: the app's setting (HYBRID env var)")
     p.add_argument("--merge", default=None, choices=["on", "off"], help="default: the app's setting (MERGE env var)")
+    p.add_argument("--rerank", default=None, choices=["on", "off"], help="default: the app's setting (RERANK env var)")
     p.add_argument("--llm", action="store_true", help="also generate answers (uses LLM quota)")
     p.add_argument("--llm-delay", type=float, default=7.0, help="seconds between LLM calls")
     a = p.parse_args()
 
     from ingest.store import connect
-    from retrieval.search import HYBRID, MERGE, MIN_SCORE
+    from retrieval.rerank import RERANK_MODEL
+    from retrieval.search import HYBRID, MERGE, MIN_SCORE, RERANK
 
     hybrid = HYBRID if a.retrieval is None else a.retrieval == "hybrid"
     merge = MERGE if a.merge is None else a.merge == "on"
     a.retrieval = "hybrid" if hybrid else "vector"
     a.merge = "on" if merge else "off"
-    print(f"source={a.source}  retrieval={a.retrieval}  merge={a.merge}  k={a.k}")
+    rerank = RERANK if a.rerank is None else a.rerank == "on"
+    a.rerank = RERANK_MODEL.split("/")[-1] if rerank else "off"
+    print(f"source={a.source}  retrieval={a.retrieval}  merge={a.merge}  rerank={a.rerank}  k={a.k}")
     conn = connect()
     try:
-        rows = run_retrieval(conn, load_questions(), a.source, a.k, hybrid, merge)
+        t0 = time.perf_counter()
+        rows = run_retrieval(conn, load_questions(), a.source, a.k, hybrid, merge, rerank)
+        print(f"retrieval for {len(rows)} questions took {time.perf_counter() - t0:.1f}s "
+              "(includes model loading and sentence-link embedding)")
         summary = report(rows, a.k, MIN_SCORE)
         if a.llm:
-            run_llm(conn, rows, a.source, a.k, a.llm_delay, hybrid, merge)
+            run_llm(conn, rows, a.source, a.k, a.llm_delay, hybrid, merge, rerank)
             summary["llm"] = report_llm(rows)
     finally:
         conn.close()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{a.source}-{a.retrieval}-merge{a.merge}.json"
+    out = OUT_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{a.source}-{a.retrieval}-merge{a.merge}-rerank{a.rerank}.json"
     out.write_text(json.dumps({"args": vars(a), "summary": summary, "rows": rows}, indent=1, default=str))
     print(f"\nSaved {out}")
 

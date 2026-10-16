@@ -67,24 +67,27 @@ Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
 | Abstained on unanswerable | 100% | 100% | 100% |
 | p50 latency (warm) | 882 ms | 1,163 ms | 1,023 ms |
 
-**Expanded eval (4 talks, 53 answerable + 12 unanswerable, same settings as Phase 4.1):**
+**Expanded eval (4 talks, 53 answerable + 12 unanswerable):**
 
-| Talk | Answered | Cited the gold moment | Link on time |
-|---|---|---|---|
-| Postgres internals | 17/17 | 17/17 | 15/17 |
-| AI engineering | 12/12 | 12/12 | 10/12 |
-| ChatGPT image tutorial | 11/12 | 10/12 | 9/10 |
-| Figma tutorial (unpunctuated captions) | 12/12 | 11/12 | 5/11 |
-| **All** | **52/53 (98%)** | **50/53 (94%)** | **39/50 (78%)** |
+| | Hybrid (Phase 4.1) | + cross-encoder reranker |
+|---|---|---|
+| hit@1 / hit@5 / MRR | 64% / 94% / 0.78 | **79%** / 94% / **0.86** |
+| Answered | 52/53 | **53/53** |
+| Cited the gold moment | 50/53 | 50/53 |
+| Cited link on time | 39/50 (78%) | **43/50 (86%)** |
+| Unanswerable refused | 12/12 | 12/12 |
 
-Unanswerable: 12/12 refused. Retrieval: hit@5 94%, MRR 0.78. Unpunctuated captions are split into
-~5-15 s pseudo-sentences; their links are the weakest (time-based cuts), and Whisper is the fix if that matters.
+Per talk with the reranker: Postgres 17/17 gold citations, AI engineering 11/12, ChatGPT image
+tutorial 11/12, Figma (unpunctuated captions) 11/12 but only 6/11 links on time.
 
 - Retrieval fuses vector search with Postgres full-text search (reciprocal rank fusion;
   `HYBRID=0` turns it off).
 - The confidence gate passes a question if the best cosine is at least `MIN_SCORE` *or* one
   chunk contains every content word of the question (recovers short acronym questions like
   "What is an LSN?"). The LLM's NOT_FOUND rule remains the safety net.
+- A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, CPU, ~0.33 s per question) reranks the
+  top 20 fused candidates (`RERANK=0` disables it; `RERANK_MODEL=BAAI/bge-reranker-base` is ~2 points
+  better on hit@1 but ~4x slower).
 - Citation links jump to the sentence that best matches the cited claim, estimated from its
   word offset within the chunk, minus an 8 s lead-in tuned on the dev split.
 - Measured and **left off**: merging adjacent chunks (`MERGE=1`) removes duplicate links but
@@ -106,4 +109,5 @@ Analysis in `docs/first-run-notes.md`.
 - [x] Phase 4: keyword search + rank fusion, sentence-level citation links
 - [x] Phase 4.1: keyword gate, neighbour merging (measured, off), Whisper vs captions eval
 - [x] Eval expanded to 4 talks / 65 questions; chunker fallback for unpunctuated captions
-- [ ] Next: close the wording gap (query rewriting or a reranker), Whisper for unpunctuated videos
+- [x] Cross-encoder reranking (on by default)
+- [ ] Next: Whisper for unpunctuated videos (Figma links), the two YouTube-blocked talks

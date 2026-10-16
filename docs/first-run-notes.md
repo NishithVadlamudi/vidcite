@@ -45,8 +45,14 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
    (93% -> 83% on time) with no gain in answers. Kept it off and fixed the visible symptom (duplicate
    links) in the CLI instead. Similarly, Whisper tied with free captions, so captions stay the default. (Entry 12)
 
-**Deliberately deferred:** sponsor/outro chunks are indexed; "summary" chunks outrank specific
-moments (seen on the ChatGPT tutorial); two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
+9. *A silent failure that looked like a result.* The first reranker eval matched the baseline to the
+   percentage point. Instead of concluding "MiniLM doesn't help", I checked: every score was NaN, and
+   sorting by NaN silently keeps the input order. Traced it layer by layer to a plain matrix multiply
+   on memory-mapped weights (copying the weights fixed it), added a guard so non-finite scores log a
+   warning instead of passing silently, then measured for real: hit@1 64% -> 79%. (Entry 14)
+
+**Deliberately deferred:** sponsor/outro chunks are indexed; Figma-style links (time-cut chunks);
+two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
 
 ---
 
@@ -518,3 +524,53 @@ The 3 misses match the retrieval misses: "exact wording" (NOT_FOUND: right chunk
 "summary" chunk that restates the whole talk outranks the specific moment. And a provider
 outage can silently cut a quarter of an eval run, so the eval counts LLM errors separately instead of
 scoring them as wrong answers. That made "retry only the failures" possible.
+
+## 14. Cross-encoder reranking
+
+**Why.** The 65-question eval showed a talk's wrap-up chunk outranking the specific moment, plus a wording
+gap ("my exact wording" vs "put the exact text ... inside quotation marks"). Before building anything,
+checked the ceiling: a reranker can only reorder candidates, and the gold chunk was in the fused top 20
+for 52/53 questions but ranked first for only 34. So there was room to gain.
+
+**What we built (no new pip dependencies, sentence-transformers already had CrossEncoder).**
+`retrieval/rerank.py` scores (question, chunk) pairs with a cross-encoder on CPU. `retrieve()` keeps a
+20-candidate pool from vector + keyword RRF, reranks it, returns the top k. Passages keep their cosine
+score, so the confidence gate is unchanged. `--rerank on|off` in the eval; model via `RERANK_MODEL`.
+
+**Bug: MiniLM returned NaN for every pair, silently.** The first comparison showed MiniLM *identical*
+to no reranking on all metrics, although it ran (13 s -> 47 s). Every top-5 list was unchanged (65/65)
+and every score was NaN: Python sorts NaN keys as "not less than anything", so the input order survived
+and the eval looked like a legitimate "no gain" result.
+- Narrowed it down: plain `transformers` gave NaN too (not sentence-transformers); both SDPA and eager
+  attention gave NaN; weights loaded with no missing keys and contained no NaN/inf; embeddings were finite;
+  hooks showed the first NaN came out of layer 0's `query` Linear. Even a manual `h @ W.T + b` was NaN,
+  with finite inputs and weights under 1e3.
+- Copying the parameters (`p.data = p.data.clone()`) fixed it: "capital of France" scored +8.5 for Paris
+  and -11.1 for bananas. So the CPU matmul misreads these weights when used straight from the
+  memory-mapped safetensors file in this torch 2.14 / transformers 4.57 setup. Most likely cause:
+  the older checkpoint's tensor layout in the file. bge-small and bge-reranker load the same way and weren't affected.
+- Fix: clone reranker weights after loading (cheap, harmless if unaffected), plus a guard: non-finite
+  scores log a warning and return the retrieval order instead of a fake rerank. Test added.
+
+**Model comparison (retrieval, 53 answerable):**
+
+| | none | MiniLM-L6 (90 MB) | bge-reranker-base (1.1 GB) |
+|---|---|---|---|
+| hit@1 (dev / holdout) | 64% (64/65) | 79% (75/**88**) | 81% (81/82) |
+| MRR | 0.78 | 0.86 | 0.87 |
+| hit@5 | 94% | 94% | 94% |
+| ChatGPT tutorial hit@1 | 42% | 67% | 75% |
+| warm rerank, 20 chunks | - | **332 ms** | 1,266 ms |
+
+Picked MiniLM: within ~2 points of bge (better on holdout), ~4x faster, half the memory on an 8 GB machine.
+Turned on by default; `api/main.py` preloads it so the first question doesn't pay the ~6 s load.
+
+**End to end (65 questions):** answered 52 -> **53/53**, cited gold 50 -> 50/53 (unchanged), links on time
+78% -> **86%**, unanswerable 12/12 refused. The reranker fixed "exact wording" (was NOT_FOUND; now a correct
+answer linked 8 s before gold) but regressed "How do you define a tool for an LLM?": it prefers the MCP chunk
+("define a function with description and input schema"). Gemini 503s hit 7 of 65 calls; re-ran just those,
+after fixing my retry script to pass the same rerank setting (it would have silently mixed configurations).
+
+**Also.** With reranking on by default, the existing unit tests started loading the real model
+(pytest 0.2 s -> 4.3 s). Added `tests/conftest.py` to keep RERANK off in unit tests; reranking tests pass a
+fake scorer. 60 tests pass in 0.17 s.

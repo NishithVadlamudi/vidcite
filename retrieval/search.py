@@ -20,6 +20,9 @@ MIN_SCORE = float(os.environ.get("MIN_SCORE", "0.55"))
 # On by default: in the eval it raised hit@1 59% -> 76% and hit@5 93% -> 100%.
 HYBRID = os.environ.get("HYBRID", "1") == "1"
 MERGE = os.environ.get("MERGE", "0") == "1"
+# On by default: MiniLM cross-encoder took hit@1 64% -> 79% and MRR 0.78 -> 0.86 (65-question eval),
+# for ~0.33 s per question on CPU. RERANK=0 disables it.
+RERANK = os.environ.get("RERANK", "1") == "1"
 RRF_K = 60          # standard RRF damping constant
 CANDIDATES = 20     # per search method, before fusion
 
@@ -131,7 +134,8 @@ def _join(run: list[Passage]) -> Passage:
 
 def retrieve(conn, question: str, k: int = 5, source: str = "youtube",
              video_id: str | None = None, embed=None, min_score: float = MIN_SCORE,
-             hybrid: bool | None = None, merge: bool | None = None) -> tuple[list[Passage], bool]:
+             hybrid: bool | None = None, merge: bool | None = None, rerank: bool | None = None,
+             score_pairs=None) -> tuple[list[Passage], bool]:
     """Returns (passages, found). found=False means the match is too weak to answer from:
     best cosine below min_score and no chunk containing every content word of the question."""
     if embed is None:
@@ -140,15 +144,22 @@ def retrieve(conn, question: str, k: int = 5, source: str = "youtube",
         hybrid = HYBRID
     if merge is None:
         merge = MERGE
+    if rerank is None:
+        rerank = RERANK
     import numpy as np
 
     q = np.asarray(embed(question), dtype=np.float32)
+    if rerank:
+        from retrieval.rerank import RERANK_CANDIDATES, rerank as rerank_passages
+    pool = max(RERANK_CANDIDATES, k) if rerank else k  # candidates to keep before reranking
     if hybrid:
-        n = max(CANDIDATES, k)
+        n = max(CANDIDATES, pool)
         passages = rrf([vector_search(conn, q, k=n, source=source, video_id=video_id),
-                        keyword_search(conn, q, question, k=n, source=source, video_id=video_id)], k=k)
+                        keyword_search(conn, q, question, k=n, source=source, video_id=video_id)], k=pool)
     else:
-        passages = vector_search(conn, q, k=k, source=source, video_id=video_id)
+        passages = vector_search(conn, q, k=pool, source=source, video_id=video_id)
+    if rerank:
+        passages = rerank_passages(question, passages, k, score_pairs)
     if merge:
         passages = merge_neighbours(passages)
     found = bool(passages) and (top_score(passages) >= min_score or any(p.all_terms for p in passages))

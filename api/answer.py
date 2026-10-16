@@ -16,13 +16,14 @@ NOT_FOUND_MESSAGE = "I couldn't find this in the video library."
 
 def answer_question(conn, question: str, source: str = "youtube", video_id: str | None = None,
                     k: int = 5, complete=None, embed=None, embed_texts=None,
-                    hybrid: bool | None = None, merge: bool | None = None) -> dict:
+                    hybrid: bool | None = None, merge: bool | None = None,
+                    rerank: bool | None = None) -> dict:
     if complete is None:
         from api.llm import complete
     t0 = time.perf_counter()
 
     passages, found = retrieve(conn, question, k=k, source=source, video_id=video_id, embed=embed,
-                               hybrid=hybrid, merge=merge)
+                               hybrid=hybrid, merge=merge, rerank=rerank)
     result = {"answer": NOT_FOUND_MESSAGE, "citations": [], "found": False,
               "top_score": round(top_score(passages), 3) if passages else None}
 

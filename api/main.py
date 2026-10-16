@@ -23,6 +23,10 @@ async def lifespan(app: FastAPI):
     pool = ConnectionPool(os.environ["DATABASE_URL"], min_size=1, max_size=4, configure=register_vector)
     from ingest.embed import QUERY_DEVICE, get_model
     get_model(QUERY_DEVICE)  # load the query embedding model once at startup, not on the first question
+    from retrieval.search import RERANK
+    if RERANK:
+        from retrieval.rerank import get_reranker
+        get_reranker()  # same for the cross-encoder (~6 s)
     yield
     pool.close()
 
