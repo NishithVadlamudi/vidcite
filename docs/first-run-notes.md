@@ -56,8 +56,12 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
    because a chunk's cosine didn't match the previous run. Now every state change gets checked from a separate
    connection. Same entry: pgvector's HNSW filtering silently returned 18 of 20 candidates. (Entry 15)
 
-**Deliberately deferred:** sponsor/outro chunks are indexed; tutorial links (sentence selection picks the
-step's announcement); two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
+11. *Read the failures before building the fix.* My explanation for weak tutorial links fit the error pattern,
+    but reading the five misses showed three different causes, and no change was supported by the data. Shipping a
+    per-source lead-in would have raised the score without making the app better. (Entry 16)
+
+**Deliberately deferred:** sponsor/outro chunks are indexed; tutorial link lead-in (needs more tutorial data);
+two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
 
 ---
 
@@ -638,3 +642,31 @@ second sits at the very end of a neighbouring chunk; a metric artefact).
 the bottleneck was sentence selection, not punctuation, and a "quality" transcript can also *hurt* (Whisper's
 "post master"). (2) Verify state changes from a fresh connection: an uncommitted delete looked successful
 from inside its own transaction and cost one full eval run.
+
+## 16. Tutorial links: the hypothesis was wrong, and no fix was shipped
+
+**Hypothesis (entry 15).** Figma links miss because tutorials announce a step before doing it, and the
+link picks the announcement.
+
+**Checked case by case** (the 5 Figma cited links that missed, latest valid run): for each one, the
+claim Gemini made, the sentence the link code picked, and the sentence containing the gold moment.
+- 2 picked the *right* sentence (circle, editable copy): the gold words sit 8-10 s into a long sentence, and
+  the 8 s lead-in pushes the link past the 15 s window.
+- 1 picked the sentence just before, 9 s early (templates): on time without the lead-in.
+- 1 picked a *different valid answer* (duplicate: "command C, command V" vs the gold option-drag): label ambiguity.
+- 1 was a genuinely wrong pick (advantages: the intro at 0:00 instead of 0:20).
+So only one case matched the "announce then do" story.
+
+**Lead-in re-swept on the valid run** (0-12 s, shifting saved link errors; no new LLM calls): the total stays
+40-43/51 from 1 to 11 s. Figma prefers a short lead (9/12 at 0-3 s vs 7/12 at 8 s); the other talks prefer
+8-10 s (35-36/39 vs 32-33/39 at 0-3 s). Any single value trades one talk's links for the other's.
+
+**Decision: no change.** A separate lead-in for Whisper transcripts would score ~44/51, but it would be tuned
+and measured on the same 12 Figma questions (4 held out), and the mechanism doesn't justify it: sentence times
+come from the same word-offset estimate for both sources. Re-tune when more tutorial-style talks (with a real
+holdout) are in the eval. A possible eval improvement for later: allow several gold moments when a talk
+genuinely gives more than one answer (the duplicate case).
+
+**Interview takeaway.** Read the failures before building the fix. My explanation fit the error *pattern*,
+but reading the five cases showed three different causes, and the data didn't support any change. Shipping a
+per-source lead-in would have improved the score without improving the app.

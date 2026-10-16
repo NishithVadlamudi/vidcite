@@ -78,8 +78,8 @@ Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
 | Unanswerable refused | 12/12 | 12/12 | 12/12 |
 
 Per talk (current): Postgres 17/17 gold citations, AI engineering 11/12, ChatGPT image tutorial 11/12,
-Figma 12/12 (Whisper transcript) but only 7/12 links on time: in click-by-click tutorials the speaker
-announces a step before doing it, and link sentence selection picks the announcement.
+Figma 12/12 (Whisper transcript) but only 7/12 links on time: mostly the 8 s lead-in plus answers that
+start mid-sentence (tuned on lecture talks; a tutorial-specific value isn't supported by 12 questions yet).
 
 - Retrieval fuses vector search with Postgres full-text search (reciprocal rank fusion;
   `HYBRID=0` turns it off).
@@ -115,4 +115,4 @@ Analysis in `docs/first-run-notes.md`.
 - [x] Eval expanded to 4 talks / 65 questions; chunker fallback for unpunctuated captions
 - [x] Cross-encoder reranking (on by default)
 - [x] `source=auto`: Whisper where it was run (Figma), captions elsewhere
-- [ ] Next: link sentence selection for tutorials (announce-then-do), the two YouTube-blocked talks
+- [ ] Next: more tutorial-style talks to re-tune link lead-in with a real holdout (see notes entry 16); the two YouTube-blocked talks
