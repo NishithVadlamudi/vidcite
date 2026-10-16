@@ -216,3 +216,19 @@ def test_rerank_scores_a_chunk_by_its_best_window():
         return [5.0 if "describe a tool" in t else (1.0 if "Tools" in t else -3.0) for _, t in pairs]
 
     assert rerank("How do you define a tool?", [on_topic, mixed], k=2, score_pairs=scores)[0].chunk_index == 1
+
+
+# --- search-only fallback ------------------------------------------------------
+
+def test_search_only_returns_moments_without_an_answer():
+    from api.answer import SEARCH_ONLY_MESSAGE, search_only
+    r = search_only(FakeConn([CHUNK]), "Which index is faster?", embed=lambda t: [1.0, 0.0] if "HNSW" in t or "faster" in t else [0.0, 1.0])
+    assert r["search_only"] and r["found"] is False and r["answer"] == SEARCH_ONLY_MESSAGE
+    assert r["citations"][0]["video_id"] == "vidA" and "link_s" in r["citations"][0]
+
+
+def test_search_only_respects_the_confidence_gate():
+    from api.answer import NOT_FOUND_MESSAGE, search_only
+    weak = Passage("vidB", "talk", 1, 0.0, 40.0, "unrelated.", 0.21)
+    r = search_only(FakeConn([weak]), "capital of France?", embed=lambda t: [0.0])
+    assert r["citations"] == [] and r["answer"] == NOT_FOUND_MESSAGE

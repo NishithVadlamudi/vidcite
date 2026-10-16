@@ -1,19 +1,26 @@
-"""HTTP API.  Run:  uvicorn api.main:app --reload   then open http://localhost:8000/docs"""
+"""HTTP API and web UI.  Run:  uvicorn api.main:app --reload
+then open http://localhost:8000 (UI) or http://localhost:8000/docs (API)."""
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
-from api.answer import answer_question
+from api.answer import answer_question, search_only
+from api.llm import LLMUnavailable
 
 load_dotenv()
 pool: ConnectionPool | None = None
+log = logging.getLogger("api")
+STATIC = Path(__file__).with_name("static")
 
 
 @asynccontextmanager
@@ -56,12 +63,17 @@ class AskResponse(BaseModel):
     found: bool
     top_score: float | None
     latency_ms: int
+    search_only: bool = False  # LLM unavailable: citations are the top matching moments, no answer
 
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):  # sync def: FastAPI runs it in a thread pool
     with pool.connection() as conn:
-        return answer_question(conn, req.question, source=req.source, video_id=req.video_id)
+        try:
+            return answer_question(conn, req.question, source=req.source, video_id=req.video_id)
+        except LLMUnavailable as e:  # e.g. Gemini free-tier quota or 503: still show the moments
+            log.warning("LLM unavailable, returning search-only results: %s", e)
+            return search_only(conn, req.question, source=req.source, video_id=req.video_id)
 
 
 @app.get("/videos")
@@ -70,6 +82,11 @@ def videos():
         cur.execute("select id, title, channel, duration_s, license from videos order by title")
         cols = ["id", "title", "channel", "duration_s", "license"]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+
+@app.get("/", include_in_schema=False)
+def ui():
+    return FileResponse(STATIC / "index.html")
 
 
 @app.get("/health")

@@ -56,3 +56,22 @@ def add_links(citations, passages, answer: str, question: str, embed=None, embed
     for c in citations:
         claim = claims_for(answer, c["n"]) or question
         c["link_s"] = best_moment(passages[c["n"] - 1], embed(claim), embed_texts)
+
+
+SEARCH_ONLY_MESSAGE = "The answer generator is unavailable right now, so here are the best matching moments."
+
+
+def search_only(conn, question: str, source: str = "auto", video_id: str | None = None, k: int = 3,
+                embed=None, embed_texts=None) -> dict:
+    """Fallback when the LLM is unavailable (e.g. free-tier quota): the top matching moments
+    with timestamp links and no generated answer. Respects the same confidence gate."""
+    t0 = time.perf_counter()
+    passages, found = retrieve(conn, question, k=k, source=source, video_id=video_id, embed=embed)
+    citations = []
+    if found:
+        citations = [{"n": i, "video_id": p.video_id, "title": p.title, "start_s": p.start_s, "end_s": p.end_s}
+                     for i, p in enumerate(passages, start=1)]
+        add_links(citations, passages, "", question, embed, embed_texts)
+    return {"answer": SEARCH_ONLY_MESSAGE if found else NOT_FOUND_MESSAGE, "citations": citations,
+            "found": False, "top_score": round(top_score(passages), 3) if passages else None,
+            "latency_ms": round((time.perf_counter() - t0) * 1000), "search_only": True}

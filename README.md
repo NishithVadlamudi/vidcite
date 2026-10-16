@@ -33,12 +33,18 @@ can compare them. Add `--no-store` to stop after chunking (no database needed).
 ## Ask questions
 
 ```bash
-# From the terminal
-python -m api.ask_cli "How does Raft elect a leader?"
-
-# Or run the API, then try it at http://localhost:8000/docs
+# Web UI + API: open http://localhost:8000 (UI) or http://localhost:8000/docs (API)
 uvicorn api.main:app --reload
+
+# Or from the terminal
+python -m api.ask_cli "How does Raft elect a leader?"
 ```
+
+The web UI (`api/static/index.html`, no build step or dependencies) shows the answer with its `[S1]` tags
+as buttons that jump an embedded YouTube player to the cited second, the matching moments, and the talks
+in the library. If the LLM is unavailable (e.g. the Gemini free-tier quota), `/ask` falls back to
+**search only**: the best matching moments with timestamp links and no generated answer, still behind the
+confidence gate.
 
 Each answer cites its sources as `[S1]`, `[S2]`; the CLI prints a YouTube link that
 starts at the cited second. Timestamps come from the database, never from the LLM.
@@ -121,4 +127,6 @@ Analysis in `docs/first-run-notes.md`.
 - [x] Eval expanded to 4 talks / 65 questions; chunker fallback for unpunctuated captions
 - [x] Cross-encoder reranking (on by default)
 - [x] `source=auto`: Whisper where it was run (Figma), captions elsewhere
-- [ ] Next: more tutorial-style talks to re-tune link lead-in with a real holdout (see notes entry 16); the two YouTube-blocked talks
+- [x] Local web UI with embedded player; search-only fallback when the LLM is unavailable
+- [x] Two talks that YouTube blocked for captions ingested via Whisper (6 talks)
+- [ ] Next: gold questions for the two new talks; hosting (e.g. Hugging Face Spaces) with rate limiting and a read-only DB role

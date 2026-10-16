@@ -754,3 +754,29 @@ message from entry 9a).
   refused. The two relabelled questions were among the 22 not yet answered.
 - Results file: `data/evals/20261016-132402-auto-hybrid-mergeoff-rerankms-marco-MiniLM-L-6-v2.json`. After the reset,
   re-run only its failed rows with the retry helper (same recorded settings) and complete this entry.
+
+## 19. Two blocked talks via Whisper, and a local web UI
+
+**Blocked talks.** Caption downloads for `eI0NM5hM-4o` and `48b5kLp36T8` were still getting 429 after more than
+14 hours, so the block wasn't a short cooldown. The audio endpoint had kept working (Figma's audio downloaded
+during the caption block), so both went in with `--source whisper`: "AI Can Copy Any App Now" (2,694 words,
+20 chunks, 72 s) and "ChatGPT vs Gemini Make Pokemon From Scratch in 1 Hour" (2,969 words, 22 chunks, 84 s).
+Under `source=auto` they're searchable immediately. Rejected: adding `curl_cffi` so yt-dlp can impersonate a browser
+(a new dependency, and it works around YouTube's rate limiting). Gold questions for them are still to do.
+
+**Web UI** (`api/static/index.html`, served at `/` by the existing FastAPI app). No build step, no dependencies:
+question box with example questions, the answer with `[S1]` tags as buttons that jump an embedded YouTube player
+(`youtube-nocookie.com/embed/<id>?start=<s>`) to the cited second, citation rows (overlapping chunks that cite the
+same moment are merged), found / top score / latency, and the talks in the library. Light and dark mode, and it
+works at 375 px with no horizontal scroll. The answer is built from text nodes and buttons, never `innerHTML`, so
+model output can't inject markup.
+
+**Search-only fallback.** `/ask` used to return a raw 500 when the LLM failed (e.g. the free-tier quota from entry 18).
+It now catches `LLMUnavailable` and returns `search_only()`: the top 3 moments with sentence-level links and no
+generated answer, still behind the confidence gate ("capital of France" still says not found). It lives only in the
+API endpoint, so `answer_question` and the eval still see LLM failures as errors. 2 new tests; 68 pass.
+
+**Checked in the browser pane:** library loads (6 talks); "Should I use HNSW" answered in 2.3 s with S1/S2 chips and
+the player set to 4:16 (the phone-width screenshot showed the embed playing that slide); "capital of France" not
+found in 0.7 s with no LLM call; no console errors. Search-only checked directly against the database. One quirk:
+the preview pane drew the YouTube embed late (it looked black at first), not a bug in the page.
