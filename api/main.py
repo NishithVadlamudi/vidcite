@@ -43,6 +43,7 @@ class Citation(BaseModel):
     title: str
     start_s: float
     end_s: float
+    link_s: float  # where the cited claim is spoken; use this for the ?t= link
 
 
 class AskResponse(BaseModel):

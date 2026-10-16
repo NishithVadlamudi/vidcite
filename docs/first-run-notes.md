@@ -34,9 +34,14 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
    cutoff, rejected 6 of 8 unanswerable questions, including near-topic ones that outscored real
    answers. Kept 0.55. Results: hit@5 93%, 86% gold citations, 100% abstention. (Entry 10)
 
-**Deliberately deferred:** citation links can be up to ~45 s early (chunk-start granularity),
-sponsor/outro chunks are indexed, and captions misspell terms. Each one needs the Phase 3 eval
-to measure the fix.
+7. *Two measured fixes, each checked on holdout.* Hybrid search (pgvector + Postgres full-text,
+   fused with RRF) took hit@1 from 59% to 76% and hit@5 to 100%, fixing rare terms like
+   "postmaster" and "LSN". Sentence-level citation links (no schema change: sentence times
+   estimated from word offsets) plus an 8 s lead-in tuned on dev took on-time links from
+   37% to 93% end to end. (Entry 11)
+
+**Deliberately deferred:** neighbour merging (overlapping chunks can cite the same moment twice),
+sponsor/outro chunks are indexed, and captions misspell terms. Each fix should be measured with the eval.
 
 ---
 
@@ -324,3 +329,56 @@ failure modes, not for claiming a precise accuracy.
 **Interview takeaway.** The eval changed a decision: without it, I'd have "tuned" MIN_SCORE to 0.61
 from dev numbers. The holdout showed it didn't generalise, and the end-to-end run showed the
 LLM's abstention, not the threshold, is what keeps answers honest.
+
+## 11. Phase 4: hybrid search and sentence-level citation links
+
+**A. Keyword search + reciprocal rank fusion.** `retrieval/search.py` adds a Postgres
+full-text query over the existing `tsv` column and GIN index (no schema change), using any-word
+matching (`plainto_tsquery` ANDs the words, so the `&` is swapped for `|`) ranked by
+`ts_rank_cd`. Top 20 from vector and top 20 from keyword are fused with RRF (k=60). Passages
+keep their cosine score, so the confidence gate works unchanged; `top_score` is now the max
+cosine, because the first fused passage isn't always the closest.
+- *Bug on the way:* the first SQL put `...::tsquery as query` straight into `FROM`; Postgres only
+  allows function calls there, not casts. Fixed by wrapping it in a one-row subquery.
+- *Result (retrieval eval, all 29):* hit@1 59% -> 76%, hit@5 93% -> 100%, MRR 0.74 -> 0.87,
+  improving on both dev and holdout. "postmaster" went from not retrieved to rank 2; "LSN" from
+  rank 3 to 1; the "tpples" typo question from the wrong video to rank 1 (via the exact terms
+  xmin/xmax). Made the default (`HYBRID=0` to disable).
+- *Not fixed by it:* "What is an LSN?" still has max cosine 0.516, so the gate rejects it even
+  though the right chunk is now rank 1. A gate that also trusts strong keyword matches is a candidate.
+
+**B. Sentence-level citation links, without re-ingesting.** Chunks store only start/end times,
+so `retrieval/moment.py` estimates each sentence's start from its word offset (assuming an even
+speaking rate within a ~45 s chunk). For each citation, the answer sentences that cite it are
+embedded (CPU) and matched against the chunk's sentences; `link_s` is that sentence's start.
+`start_s`/`end_s` still describe the chunk; the CLI and API use `link_s` for `?t=`.
+- *Metric change:* "on time" became 3 s late to 15 s early. Chunk-start links could only be
+  early, but sentence links can be late, and late is worse (the viewer misses the start).
+- *First result:* median distance from gold 17 s -> 3 s, on time 41% -> 69%, but most misses
+  were *late* (-3 to -19 s).
+- *Lead-in tuned like MIN_SCORE:* swept 0-12 s on dev; 8-10 s tied best (85%); picked 8 s
+  (the smallest, so the least unrelated speech). Holdout: 67% -> 89%. It falls off a cliff past
+  10 s on both splits, a sign the window is real rather than noise.
+- *Bug on the way:* `claims_for` left "Use HNSW ." after stripping tags; reused the same tidy-up
+  regex as `resolve_citations`. A unit test with wrong arithmetic (14 words, not 15) also failed
+  first; the code was right.
+
+**End to end (`python -m evals.run --llm`, hybrid):**
+
+| | Phase 3 | Phase 4 |
+|---|---|---|
+| answerable answered | 90% | 93% |
+| cited the gold moment | 86% | 93% |
+| cited links on time | 37% (chunk start) | 93% (sentence) |
+| unanswerable abstained | 100% | 100% |
+| p50 latency | 882 ms | 1,163 ms |
+
+The latency cost (~0.3 s) is the extra keyword query plus embedding a chunk's sentences per citation.
+
+**Suspicious / next.**
+- Overlapping chunks can produce two citations with the same link (the HNSW answer cites
+  [S1] and [S2], both at 4:16). Neighbour merging would dedupe them.
+- For the HNSW question the link (4:16) is right for the cited claim (the HNSW vs IVFFlat
+  comparison) but ~6 s after the question's gold moment (4:09, where HNSW is introduced).
+  Gold labels mark where a topic *starts*; a claim can be later. The metric is a proxy.
+- 47 tests pass (11 new: RRF, moments, claims, lead-in clamp, link_s on answers).

@@ -2,14 +2,16 @@
 
 A passage is correct when it comes from the gold video and its time span contains
 the gold second (the moment the answer is spoken). Separately, a citation link is
-"on time" when it starts at most TOLERANCE_S before that moment (links jump to the
-passage start, so they can only be early, never late).
+"on time" when it lands at most TOLERANCE_S before that moment or at most
+LATE_TOLERANCE_S after it. Late is worse than early: the viewer misses the start
+of the answer, so the window is lopsided.
 """
 from __future__ import annotations
 
 from statistics import median
 
-TOLERANCE_S = 15.0  # the timestamp accuracy target from ingest/captions.py
+TOLERANCE_S = 15.0       # the timestamp accuracy target from ingest/captions.py
+LATE_TOLERANCE_S = 3.0   # a few words
 
 
 def contains(passage, video_id: str, gold_s: float) -> bool:
@@ -29,20 +31,34 @@ def link_error(start_s: float, gold_s: float) -> float:
     return gold_s - start_s
 
 
+def on_time(err: float) -> bool:
+    return -LATE_TOLERANCE_S <= err <= TOLERANCE_S
+
+
+def link_stats(errs: list[float], prefix: str) -> dict:
+    """On-time rate and the median/max distance (either direction) from the gold moment."""
+    if not errs:
+        return {f"{prefix}_on_time": None, f"{prefix}_abs_median_s": None, f"{prefix}_abs_max_s": None}
+    return {
+        f"{prefix}_on_time": sum(on_time(e) for e in errs) / len(errs),
+        f"{prefix}_abs_median_s": median(abs(e) for e in errs),
+        f"{prefix}_abs_max_s": max(abs(e) for e in errs),
+    }
+
+
 def summarize_retrieval(rows: list[dict], k: int) -> dict:
-    """rows: answerable questions only, each {"rank": int|None, "link_err": float|None}."""
+    """rows: answerable questions only, each {"rank": int|None, "link_err": float|None}
+    and optionally "moment_err" (sentence-level link) for the same passage."""
     n = len(rows)
     if not n:
         return {}
-    errs = [r["link_err"] for r in rows if r["link_err"] is not None]
     return {
         "n": n,
         "hit@1": sum(r["rank"] == 1 for r in rows) / n,
         f"hit@{k}": sum(r["rank"] is not None for r in rows) / n,
         "mrr": sum(1 / r["rank"] for r in rows if r["rank"]) / n,
-        "link_on_time": sum(e <= TOLERANCE_S for e in errs) / len(errs) if errs else None,
-        "link_err_median_s": median(errs) if errs else None,
-        "link_err_max_s": max(errs) if errs else None,
+        **link_stats([r["link_err"] for r in rows if r["link_err"] is not None], "link"),
+        **link_stats([r["moment_err"] for r in rows if r.get("moment_err") is not None], "moment"),
     }
 
 

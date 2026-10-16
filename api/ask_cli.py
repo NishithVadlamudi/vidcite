@@ -25,8 +25,8 @@ def main():
         conn.close()
     print("\n" + r["answer"] + "\n")
     for c in r["citations"]:
-        t = int(c["start_s"])
-        print(f"  [S{c['n']}] {c['title']} @ {format_ts(c['start_s'])}  https://youtu.be/{c['video_id']}?t={t}")
+        t = int(c["link_s"])
+        print(f"  [S{c['n']}] {c['title']} @ {format_ts(c['link_s'])}  https://youtu.be/{c['video_id']}?t={t}")
     print(f"\n  found={r['found']}  top_score={r['top_score']}  latency={r['latency_ms']} ms")
 
 

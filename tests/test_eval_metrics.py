@@ -1,5 +1,5 @@
 from evals.metrics import (best_threshold, contains, first_hit_rank, gate_scores,
-                           link_error, summarize_retrieval)
+                           link_error, on_time, summarize_retrieval)
 from retrieval.search import Passage
 
 P = [
@@ -27,14 +27,24 @@ def test_link_error_is_how_early_the_link_jumps():
     assert link_error(160.0, 190.0) == 30.0
 
 
+def test_on_time_window_is_lopsided():
+    assert on_time(0.0) and on_time(15.0) and on_time(-3.0)
+    assert not on_time(15.1)   # too early: viewer waits through unrelated speech
+    assert not on_time(-3.1)   # too late: viewer misses the start of the answer
+
+
 def test_summarize_retrieval():
-    rows = [{"rank": 1, "link_err": 5.0}, {"rank": 2, "link_err": 30.0}, {"rank": None, "link_err": None}]
+    rows = [{"rank": 1, "link_err": 5.0, "moment_err": -1.0},
+            {"rank": 2, "link_err": 30.0, "moment_err": -8.0},
+            {"rank": None, "link_err": None}]
     s = summarize_retrieval(rows, k=5)
     assert s["n"] == 3
     assert s["hit@1"] == 1 / 3 and s["hit@5"] == 2 / 3
     assert s["mrr"] == (1 + 0.5) / 3
     assert s["link_on_time"] == 0.5  # 5 s is on time, 30 s is too early
-    assert s["link_err_median_s"] == 17.5 and s["link_err_max_s"] == 30.0
+    assert s["link_abs_median_s"] == 17.5 and s["link_abs_max_s"] == 30.0
+    assert s["moment_on_time"] == 0.5  # 1 s late is fine, 8 s late is not
+    assert s["moment_abs_max_s"] == 8.0
 
 
 # --- confidence gate ---------------------------------------------------------

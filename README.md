@@ -56,10 +56,20 @@ python -m evals.run          # retrieval hit@1/hit@5/MRR, link accuracy, MIN_SCO
 python -m evals.run --llm    # also end-to-end answers, citations and abstention (rate-limited)
 ```
 
-First results (2 talks, 29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
-hit@5 93%, hit@1 59%, MRR 0.74; end to end 90% answered, 86% cited the gold moment,
-100% abstention on unanswerable; but only 40% of citation links land within 15 s
-of the answer. Details and analysis in `docs/first-run-notes.md`.
+Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
+
+| | Phase 3 (vector, chunk-start links) | Phase 4 (hybrid, sentence links) |
+|---|---|---|
+| hit@1 / hit@5 / MRR | 59% / 93% / 0.74 | **76% / 100% / 0.87** |
+| Answered / cited the gold moment | 90% / 86% | **93% / 93%** |
+| Cited link on time (3 s late to 15 s early) | 37% | **93%** |
+| Abstained on unanswerable | 100% | 100% |
+| p50 latency (warm) | 882 ms | 1,163 ms |
+
+Retrieval fuses vector search with Postgres full-text search (reciprocal rank fusion;
+`HYBRID=0` turns it off). Citation links jump to the sentence that best matches the
+cited claim, estimated from its word offset within the chunk, minus an 8 s lead-in
+tuned on the dev split. Analysis in `docs/first-run-notes.md`.
 
 ## Status
 
@@ -71,4 +81,5 @@ of the answer. Details and analysis in `docs/first-run-notes.md`.
 - [x] Embedding (bge-small) + storage in Supabase
 - [x] Phase 2: vector search, confidence gate, citation-tagged prompt, `/ask` API + CLI
 - [x] Phase 3: eval set and metrics (`evals/`)
-- [ ] Phase 4: keyword search + rank fusion, sentence-level citation links
+- [x] Phase 4: keyword search + rank fusion, sentence-level citation links
+- [ ] Next: neighbour merging (overlapping chunks can produce duplicate links), Whisper vs captions eval

@@ -34,3 +34,13 @@ def resolve_citations(answer: str, passages) -> tuple[str, list[dict], list[int]
     clean = re.sub(r"[ \t]+([.,;:!?])", r"\1", clean)   # tidy space left by removed tags
     clean = re.sub(r"[ \t]{2,}", " ", clean).strip()
     return clean, citations, invalid
+
+
+SENTENCE_BREAK = re.compile(r"(?<=[.?!])\s+")
+
+
+def claims_for(answer: str, n: int) -> str:
+    """The answer sentences that cite [Sn], with tags removed: what that passage supports."""
+    tag = f"[S{n}]"
+    sentences = [s for s in SENTENCE_BREAK.split(answer) if tag in s]
+    return " ".join(re.sub(r"[ \t]+([.,;:!?])", r"\1", TAG.sub("", s)).strip() for s in sentences)
