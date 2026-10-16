@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pgvector.psycopg import register_vector
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
@@ -20,7 +19,8 @@ pool: ConnectionPool | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pool
-    pool = ConnectionPool(os.environ["DATABASE_URL"], min_size=1, max_size=4, configure=register_vector)
+    from ingest.store import configure
+    pool = ConnectionPool(os.environ["DATABASE_URL"], min_size=1, max_size=4, configure=configure)
     from ingest.embed import QUERY_DEVICE, get_model
     get_model(QUERY_DEVICE)  # load the query embedding model once at startup, not on the first question
     from retrieval.search import RERANK
@@ -38,7 +38,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=500)
     video_id: str | None = None
-    source: str = Field(default="youtube", pattern="^(youtube|whisper)$")
+    source: str = Field(default="auto", pattern="^(auto|youtube|whisper)$")  # auto: Whisper if available
 
 
 class Citation(BaseModel):

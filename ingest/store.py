@@ -16,6 +16,11 @@ on conflict (id) do update set
   ingested_at = now()
 """
 
+# pgvector's HNSW search finds ef_search neighbours *then* applies WHERE filters. The default
+# (40) left 7/65 eval questions with fewer than the 20 candidates the reranker expects once the
+# source="auto" filter dropped ~44% of chunks; 100 left none short.
+HNSW_EF_SEARCH = 100
+
 DELETE_CHUNKS = "delete from chunks where video_id = %s and source = %s"
 
 INSERT_CHUNK = """
@@ -27,15 +32,23 @@ values (%s, %s, %s, %s, %s, %s, %s)
 def connect():
     import psycopg
     from dotenv import load_dotenv
-    from pgvector.psycopg import register_vector
 
     load_dotenv()
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError("Set DATABASE_URL in .env (Supabase > Project Settings > Database > Connection string)")
     conn = psycopg.connect(url)
-    register_vector(conn)
+    configure(conn)
     return conn
+
+
+def configure(conn) -> None:
+    """Per-connection setup, also used by the API's connection pool."""
+    from pgvector.psycopg import register_vector
+
+    register_vector(conn)
+    conn.execute(f"set hnsw.ef_search = {HNSW_EF_SEARCH}")
+    conn.commit()  # SET inside an uncommitted transaction would be rolled back
 
 
 def store_video(conn, meta: dict, source: str, chunks: list[dict], vectors: list[list[float]]) -> int:

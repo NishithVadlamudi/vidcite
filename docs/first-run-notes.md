@@ -51,8 +51,13 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
    on memory-mapped weights (copying the weights fixed it), added a guard so non-finite scores log a
    warning instead of passing silently, then measured for real: hit@1 64% -> 79%. (Entry 14)
 
-**Deliberately deferred:** sponsor/outro chunks are indexed; Figma-style links (time-cut chunks);
-two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
+10. *Verify, don't trust the success message.* A delete reported "30 rows deleted" and a follow-up check
+   agreed, but both ran inside one uncommitted psycopg transaction that was rolled back on close. I caught it
+   because a chunk's cosine didn't match the previous run. Now every state change gets checked from a separate
+   connection. Same entry: pgvector's HNSW filtering silently returned 18 of 20 candidates. (Entry 15)
+
+**Deliberately deferred:** sponsor/outro chunks are indexed; tutorial links (sentence selection picks the
+step's announcement); two talks still blocked by YouTube 429s. Each fix should be measured with the eval.
 
 ---
 
@@ -574,3 +579,62 @@ after fixing my retry script to pass the same rerank setting (it would have sile
 **Also.** With reranking on by default, the existing unit tests started loading the real model
 (pytest 0.2 s -> 4.3 s). Added `tests/conftest.py` to keep RERANK off in unit tests; reranking tests pass a
 fake scorer. 60 tests pass in 0.17 s.
+
+## 15. Whisper for Figma: `source=auto`, a pgvector filter bug, and a delete that didn't happen
+
+**Goal.** Fix Figma's weak citation links (6/11 on time) by transcribing it with Whisper, which
+gives real sentence boundaries. `ingest.cli FTFaQWZBqQ8 --source whisper` took 112 s (35 punctuated
+chunks). The YouTube audio download worked even while caption downloads were still getting 429s.
+
+**Design: `source=auto` (new default).** The app searched one transcript source at a time, so Figma's
+Whisper chunks would have been ignored. Both search queries now accept `auto`: per video, use the Whisper
+transcript if one exists, otherwise the captions (`not exists` subquery on `chunks`; no schema change).
+The rule: Whisper is used wherever you deliberately ran it. CLI, API and eval default to `auto`.
+
+**Bug: pgvector HNSW returned short candidate pools under the filter.** The query plan uses the HNSW
+index, which finds `hnsw.ef_search` neighbours (default 40) *then* applies the WHERE clause. `auto` filters
+out ~44% of chunks, so 7/65 eval questions got fewer than the 20 candidates the reranker expects (as few
+as 18), with no error. `ef_search = 100` -> 0/65 short. Set per connection in `ingest/store.configure()`,
+used by `connect()` and the API pool (with a commit, since a SET inside an uncommitted transaction is
+rolled back). Side note: `SHOW hnsw.ef_search` fails on a fresh connection until the pgvector library
+has loaded in that session.
+
+**Measured: Whisper didn't fix Figma links.** Retrieval: hit@5 94% -> 98%, and every Figma gold chunk
+was found. But Figma sentence links went 55% -> 50% on time. Per question, the big errors barely moved
+(+37 -> +45, +28 -> +30, +23 -> +24) and are all *early*. So punctuation wasn't the bottleneck: sentence
+*selection* is. In a click-by-click tutorial the speaker announces a step ("now I want to create this
+card") before doing it, the question matches the announcement best, and the 8 s lead-in makes it earlier
+still.
+- Re-swept the lead-in (0-12 s) on the saved end-to-end results (link error shifts by L - 8, so no new
+  LLM calls). No value was a reliable gain: a short lead helped Figma (6 -> 9/12 under auto) but cost a
+  lecture link and scored 13/15 vs 14/15 on holdout. Differences of 1-3 questions: kept 8 s.
+
+**Measured: the lecture talks got slightly worse on Whisper.** Postgres and AI engineering also had
+Whisper copies from the Phase 4.1 experiment, so `auto` switched them too. End to end they lost one answer
+each: Whisper wrote "post master" as two words, so keyword search couldn't match "postmaster" (gold chunk
+fell to rank 3, Gemini said NOT_FOUND); the other was ordinary Gemini variation (gold at rank 1, still
+NOT_FOUND). Decision (option 1): delete those two experimental Whisper copies so only Figma uses Whisper,
+keeping transcripts and audio locally so they can be rebuilt without YouTube.
+
+**Bug: my delete didn't happen.** The delete script ran a SELECT first, which in psycopg silently opens
+a transaction, so the later `with conn.transaction():` became a nested savepoint, not a commit. The
+"after" check ran inside the same uncommitted transaction and showed the rows gone; `conn.close()` rolled
+everything back. A whole end-to-end eval then ran on the unchanged database. I caught it because the same
+caption chunk had a different cosine than the run before (0.706 vs 0.689): it was actually the Whisper copy.
+Redid the delete with an explicit commit and verified it from a *separate* connection. Relabelled that eval
+file `...-INVALID-whisper-not-deleted.json`. The app's ingest isn't affected (its connection commits right after setup).
+
+**Also: my retry helper hard-coded `source="youtube"`.** Caught it before use; it now takes the results
+file as an argument and re-runs the failed rows with that run's own recorded settings.
+
+**Confirmed result (corrected run, Whisper for Figma only).** The postmaster chunk is back at cosine 0.706
+(the caption copy), so the deletion took effect. End to end: answered 53/53, **cited gold 51/53** (best so far;
+50/53 with captions only), links on time 42/51 (82%; 86% with captions only), unanswerable refused 12/12.
+Retrieval hit@5 96%, MRR 0.87. Figma: gold 11 -> 12/12, links 6 -> 7. 10 Gemini 503s were retried automatically.
+Remaining misses: "define a tool" (the reranker prefers the MCP chunk) and "change part of an image" (gold
+second sits at the very end of a neighbouring chunk; a metric artefact).
+
+**Takeaways.** (1) The fix I expected to work (better transcripts -> better links) didn't. The eval showed
+the bottleneck was sentence selection, not punctuation, and a "quality" transcript can also *hurt* (Whisper's
+"post master"). (2) Verify state changes from a fresh connection: an uncommitted delete looked successful
+from inside its own transaction and cost one full eval run.

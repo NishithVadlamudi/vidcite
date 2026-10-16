@@ -14,7 +14,7 @@ log = logging.getLogger("answer")
 NOT_FOUND_MESSAGE = "I couldn't find this in the video library."
 
 
-def answer_question(conn, question: str, source: str = "youtube", video_id: str | None = None,
+def answer_question(conn, question: str, source: str = "auto", video_id: str | None = None,
                     k: int = 5, complete=None, embed=None, embed_texts=None,
                     hybrid: bool | None = None, merge: bool | None = None,
                     rerank: bool | None = None) -> dict:

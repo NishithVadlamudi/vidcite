@@ -2,7 +2,7 @@
 
     python -m evals.run                       # retrieval + confidence gate (no LLM calls)
     python -m evals.run --llm                 # also full answers via the LLM (slow, rate-limited)
-    python -m evals.run --source whisper      # compare transcript sources
+    python -m evals.run --source youtube      # compare transcript sources (default: auto)
     python -m evals.run --retrieval hybrid    # vector + keyword search fused with RRF
     python -m evals.run --merge on            # join adjacent retrieved chunks
     python -m evals.run --rerank on           # cross-encoder reranking (model: RERANK_MODEL env var)
@@ -159,7 +159,7 @@ def report_llm(rows) -> dict:
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Evaluate retrieval and answers against evals/questions.jsonl")
-    p.add_argument("--source", default="youtube", choices=["youtube", "whisper"])
+    p.add_argument("--source", default="auto", choices=["auto", "youtube", "whisper"])
     p.add_argument("--k", type=int, default=5)
     p.add_argument("--retrieval", default=None, choices=["vector", "hybrid"],
                    help="default: the app's setting (HYBRID env var)")

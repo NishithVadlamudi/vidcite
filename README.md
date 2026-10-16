@@ -69,22 +69,26 @@ Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
 
 **Expanded eval (4 talks, 53 answerable + 12 unanswerable):**
 
-| | Hybrid (Phase 4.1) | + cross-encoder reranker |
-|---|---|---|
-| hit@1 / hit@5 / MRR | 64% / 94% / 0.78 | **79%** / 94% / **0.86** |
-| Answered | 52/53 | **53/53** |
-| Cited the gold moment | 50/53 | 50/53 |
-| Cited link on time | 39/50 (78%) | **43/50 (86%)** |
-| Unanswerable refused | 12/12 | 12/12 |
+| | Hybrid (Phase 4.1) | + cross-encoder reranker | + Whisper for Figma (`source=auto`) |
+|---|---|---|---|
+| hit@1 / hit@5 / MRR | 64% / 94% / 0.78 | 79% / 94% / 0.86 | 79% / **96%** / 0.87 |
+| Answered | 52/53 | 53/53 | 53/53 |
+| Cited the gold moment | 50/53 | 50/53 | **51/53** |
+| Cited link on time | 39/50 (78%) | 43/50 (86%) | 42/51 (82%) |
+| Unanswerable refused | 12/12 | 12/12 | 12/12 |
 
-Per talk with the reranker: Postgres 17/17 gold citations, AI engineering 11/12, ChatGPT image
-tutorial 11/12, Figma (unpunctuated captions) 11/12 but only 6/11 links on time.
+Per talk (current): Postgres 17/17 gold citations, AI engineering 11/12, ChatGPT image tutorial 11/12,
+Figma 12/12 (Whisper transcript) but only 7/12 links on time: in click-by-click tutorials the speaker
+announces a step before doing it, and link sentence selection picks the announcement.
 
 - Retrieval fuses vector search with Postgres full-text search (reciprocal rank fusion;
   `HYBRID=0` turns it off).
 - The confidence gate passes a question if the best cosine is at least `MIN_SCORE` *or* one
   chunk contains every content word of the question (recovers short acronym questions like
   "What is an LSN?"). The LLM's NOT_FOUND rule remains the safety net.
+- `source=auto` (default): each video uses its Whisper transcript if you ran Whisper on it
+  (`--source whisper`), otherwise its YouTube captions. Currently only the Figma tutorial (unpunctuated
+  captions) uses Whisper.
 - A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, CPU, ~0.33 s per question) reranks the
   top 20 fused candidates (`RERANK=0` disables it; `RERANK_MODEL=BAAI/bge-reranker-base` is ~2 points
   better on hit@1 but ~4x slower).
@@ -110,4 +114,5 @@ Analysis in `docs/first-run-notes.md`.
 - [x] Phase 4.1: keyword gate, neighbour merging (measured, off), Whisper vs captions eval
 - [x] Eval expanded to 4 talks / 65 questions; chunker fallback for unpunctuated captions
 - [x] Cross-encoder reranking (on by default)
-- [ ] Next: Whisper for unpunctuated videos (Figma links), the two YouTube-blocked talks
+- [x] `source=auto`: Whisper where it was run (Figma), captions elsewhere
+- [ ] Next: link sentence selection for tutorials (announce-then-do), the two YouTube-blocked talks

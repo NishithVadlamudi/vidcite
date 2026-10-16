@@ -23,6 +23,9 @@ MERGE = os.environ.get("MERGE", "0") == "1"
 # On by default: MiniLM cross-encoder took hit@1 64% -> 79% and MRR 0.78 -> 0.86 (65-question eval),
 # for ~0.33 s per question on CPU. RERANK=0 disables it.
 RERANK = os.environ.get("RERANK", "1") == "1"
+# Transcript source. "auto" = per video, Whisper if it was transcribed, else YouTube captions
+# (Whisper is only run deliberately, e.g. for videos whose captions lack punctuation).
+SOURCE = os.environ.get("SOURCE", "auto")
 RRF_K = 60          # standard RRF damping constant
 CANDIDATES = 20     # per search method, before fusion
 
@@ -31,7 +34,10 @@ select c.video_id, v.title, c.chunk_index, c.start_s, c.end_s, c.text,
        1 - (c.embedding <=> %(q)s) as score
 from chunks c
 join videos v on v.id = c.video_id
-where c.source = %(source)s
+where (c.source = %(source)s
+       -- auto: each video's Whisper transcript if it has one, otherwise its YouTube captions
+       or (%(source)s = 'auto' and (c.source = 'whisper' or (c.source = 'youtube' and not exists (
+           select 1 from chunks w where w.video_id = c.video_id and w.source = 'whisper')))))
   and (%(video_id)s::text is null or c.video_id = %(video_id)s)
 order by c.embedding <=> %(q)s
 limit %(k)s
@@ -47,7 +53,10 @@ select c.video_id, v.title, c.chunk_index, c.start_s, c.end_s, c.text,
 from chunks c
 join videos v on v.id = c.video_id
 cross join (select replace(plainto_tsquery('english', %(text)s)::text, '&', '|')::tsquery as query) q
-where c.source = %(source)s
+where (c.source = %(source)s
+       -- auto: each video's Whisper transcript if it has one, otherwise its YouTube captions
+       or (%(source)s = 'auto' and (c.source = 'whisper' or (c.source = 'youtube' and not exists (
+           select 1 from chunks w where w.video_id = c.video_id and w.source = 'whisper')))))
   and (%(video_id)s::text is null or c.video_id = %(video_id)s)
   and c.tsv @@ query
 order by ts_rank_cd(c.tsv, query) desc
@@ -68,13 +77,13 @@ class Passage:
     times: list | None = None  # merged passages: [(start_s, sentence)] estimated per original chunk
 
 
-def vector_search(conn, query_vec, k: int = 5, source: str = "youtube", video_id: str | None = None) -> list[Passage]:
+def vector_search(conn, query_vec, k: int = 5, source: str = SOURCE, video_id: str | None = None) -> list[Passage]:
     with conn.cursor() as cur:
         cur.execute(VECTOR_SEARCH, {"q": query_vec, "source": source, "video_id": video_id, "k": k})
         return [Passage(*row) for row in cur.fetchall()]
 
 
-def keyword_search(conn, query_vec, question: str, k: int = 5, source: str = "youtube",
+def keyword_search(conn, query_vec, question: str, k: int = 5, source: str = SOURCE,
                    video_id: str | None = None) -> list[Passage]:
     with conn.cursor() as cur:
         cur.execute(KEYWORD_SEARCH, {"q": query_vec, "text": question, "source": source,
@@ -132,7 +141,7 @@ def _join(run: list[Passage]) -> Passage:
                    any(p.all_terms for p in run), times)
 
 
-def retrieve(conn, question: str, k: int = 5, source: str = "youtube",
+def retrieve(conn, question: str, k: int = 5, source: str = SOURCE,
              video_id: str | None = None, embed=None, min_score: float = MIN_SCORE,
              hybrid: bool | None = None, merge: bool | None = None, rerank: bool | None = None,
              score_pairs=None) -> tuple[list[Passage], bool]:

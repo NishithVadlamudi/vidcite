@@ -1,5 +1,5 @@
 """Ask from the terminal, no server needed:
-    python -m api.ask_cli "How does Raft elect a leader?" [--source whisper] [--video VIDEO_ID]
+    python -m api.ask_cli "How does Raft elect a leader?" [--source auto|youtube|whisper] [--video VIDEO_ID]
 """
 import argparse
 
@@ -12,7 +12,7 @@ from ingest.store import connect
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("question")
-    p.add_argument("--source", default="youtube", choices=["youtube", "whisper"])
+    p.add_argument("--source", default="auto", choices=["auto", "youtube", "whisper"])
     p.add_argument("--video")
     a = p.parse_args()
 
