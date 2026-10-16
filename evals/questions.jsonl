@@ -1,0 +1,37 @@
+{"question": "What are the four ACID properties PostgreSQL enforces?", "video_id": "P8rrhZTPEAQ", "gold_s": 58.08, "gold_phrase": "Atomicity, every transaction", "split": "dev"}
+{"question": "Why is Postgres described as object-relational rather than just relational?", "video_id": "P8rrhZTPEAQ", "gold_s": 79.84, "gold_phrase": "But actually PostgreSQL is an object relational", "split": "dev"}
+{"question": "What is the postmaster in PostgreSQL?", "video_id": "P8rrhZTPEAQ", "gold_s": 112.72, "gold_phrase": "The server or postmaster", "split": "holdout"}
+{"question": "How many backend processes does Postgres start per client connection?", "video_id": "P8rrhZTPEAQ", "gold_s": 124.8, "gold_phrase": "Backend processes are one per active connection", "split": "dev"}
+{"question": "How large are the pages that Postgres heap files are made of?", "video_id": "P8rrhZTPEAQ", "gold_s": 168.16, "gold_phrase": "collections of fixed-sized, typically 8 kilobyte", "split": "dev"}
+{"question": "What metadata does each tuple carry, like xmin and xmax?", "video_id": "P8rrhZTPEAQ", "gold_s": 190.8, "gold_phrase": "A tpple isn't just the data itself", "split": "holdout"}
+{"question": "What is TOAST in PostgreSQL?", "video_id": "P8rrhZTPEAQ", "gold_s": 214.24, "gold_phrase": "It stands for the oversized attribute", "split": "dev"}
+{"question": "Which compression algorithm does TOAST use by default?", "video_id": "P8rrhZTPEAQ", "gold_s": 262.08, "gold_phrase": "PGLZ stands for", "split": "dev"}
+{"question": "Is there a faster compression option than PGLZ in newer Postgres versions?", "video_id": "P8rrhZTPEAQ", "gold_s": 291.6, "gold_phrase": "since PostgreSQL 14 LZ4", "split": "holdout"}
+{"question": "Where does Postgres put a large value that still doesn't fit after compression?", "video_id": "P8rrhZTPEAQ", "gold_s": 297.44, "gold_phrase": "the second option is outofline storage", "split": "dev"}
+{"question": "How does MVCC let readers and writers avoid blocking each other?", "video_id": "P8rrhZTPEAQ", "gold_s": 350.24, "gold_phrase": "Unlike traditional lockbased systems", "split": "dev"}
+{"question": "Which row versions is a transaction allowed to see?", "video_id": "P8rrhZTPEAQ", "gold_s": 575.04, "gold_phrase": "When you read data, you only see", "split": "holdout"}
+{"question": "What does autovacuum do?", "video_id": "P8rrhZTPEAQ", "gold_s": 594.16, "gold_phrase": "The vacuum process known as autovacuum", "split": "dev"}
+{"question": "How does Postgres guarantee durability if it crashes?", "video_id": "P8rrhZTPEAQ", "gold_s": 618.72, "gold_phrase": "Durability in Postgrql is guaranteed", "split": "dev"}
+{"question": "How do read replicas stay in sync with the primary?", "video_id": "P8rrhZTPEAQ", "gold_s": 636.56, "gold_phrase": "The write ahead log also underpins replication", "split": "holdout"}
+{"question": "What is a checkpoint and why does it speed up crash recovery?", "video_id": "P8rrhZTPEAQ", "gold_s": 656.16, "gold_phrase": "A checkpoint is a critical process", "split": "dev"}
+{"question": "What is an LSN?", "video_id": "P8rrhZTPEAQ", "gold_s": 710.32, "gold_phrase": "log sequence number or LSN marking", "split": "dev"}
+{"question": "Which Python package manager should an AI engineer use?", "video_id": "A2QrRXCypm4", "gold_s": 30.32, "gold_phrase": "Use UV as your package manager", "split": "holdout"}
+{"question": "Is the Anthropic messages API stateful or stateless?", "video_id": "A2QrRXCypm4", "gold_s": 98.84, "gold_phrase": "This one is completely stateless", "split": "dev"}
+{"question": "How do you define a tool for an LLM?", "video_id": "A2QrRXCypm4", "gold_s": 66.2, "gold_phrase": "You describe a tool by providing a name", "split": "dev"}
+{"question": "When should I use an MCP server instead of a regular tool?", "video_id": "A2QrRXCypm4", "gold_s": 175.04, "gold_phrase": "Generally, you use tools for functions", "split": "holdout"}
+{"question": "How does a typical RAG pipeline prepare documents?", "video_id": "A2QrRXCypm4", "gold_s": 197.28, "gold_phrase": "You take your source documents, break them up", "split": "dev"}
+{"question": "Which distance metric should I use for text embeddings?", "video_id": "A2QrRXCypm4", "gold_s": 235.96, "gold_phrase": "You will usually be using cosine for text", "split": "dev"}
+{"question": "What is the difference between HNSW and IVFFlat indexes?", "video_id": "A2QrRXCypm4", "gold_s": 249.6, "gold_phrase": "HNSW indexes build a graph", "split": "holdout"}
+{"question": "What is reciprocal rank fusion?", "video_id": "A2QrRXCypm4", "gold_s": 274.08, "gold_phrase": "A common way to do this is called reciprocal rank fusion", "split": "dev"}
+{"question": "What does hit at 10 measure in a RAG eval?", "video_id": "A2QrRXCypm4", "gold_s": 304.64, "gold_phrase": "hit at 10 measures", "split": "dev"}
+{"question": "Why keep a holdout set when running evals?", "video_id": "A2QrRXCypm4", "gold_s": 350.28, "gold_phrase": "This is a holdout set", "split": "holdout"}
+{"question": "What is LoRA fine-tuning?", "video_id": "A2QrRXCypm4", "gold_s": 370.16, "gold_phrase": "LoRA stands for low-rank adaptation", "split": "dev"}
+{"question": "What should I record in OpenTelemetry for LLM calls?", "video_id": "A2QrRXCypm4", "gold_s": 407.64, "gold_phrase": "You'll need to track input, output", "split": "dev"}
+{"question": "How does Raft elect a leader?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "holdout"}
+{"question": "What is the capital of France?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
+{"question": "How should I choose the number of partitions for a Kafka topic?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
+{"question": "How does MySQL InnoDB implement row-level locking?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "holdout"}
+{"question": "What is the difference between BM25 and TF-IDF?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
+{"question": "How do I deploy a Next.js app to Vercel?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}
+{"question": "What table partitioning strategies does PostgreSQL support?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "holdout"}
+{"question": "How much does GPT-5 cost per million tokens?", "video_id": null, "gold_s": null, "gold_phrase": null, "split": "dev"}

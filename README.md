@@ -44,6 +44,23 @@ Each answer cites its sources as `[S1]`, `[S2]`; the CLI prints a YouTube link t
 starts at the cited second. Timestamps come from the database, never from the LLM.
 If the best match is too weak, or the model finds no answer, it says so instead of guessing.
 
+## Evaluate
+
+`evals/questions.jsonl` holds hand-labelled questions: answerable ones carry the video
+and the second the answer is spoken (looked up from caption word timings via a gold
+phrase), and unanswerable ones (several deliberately near-topic) test abstention.
+Every third question is a holdout: tune on dev, report on holdout.
+
+```bash
+python -m evals.run          # retrieval hit@1/hit@5/MRR, link accuracy, MIN_SCORE sweep (no LLM calls)
+python -m evals.run --llm    # also end-to-end answers, citations and abstention (rate-limited)
+```
+
+First results (2 talks, 29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
+hit@5 93%, hit@1 59%, MRR 0.74; end to end 90% answered, 86% cited the gold moment,
+100% abstention on unanswerable; but only 40% of citation links land within 15 s
+of the answer. Details and analysis in `docs/first-run-notes.md`.
+
 ## Status
 
 - [x] Schema
@@ -53,4 +70,5 @@ If the best match is too weak, or the model finds no answer, it says so instead 
 - [x] Ingestion CLI
 - [x] Embedding (bge-small) + storage in Supabase
 - [x] Phase 2: vector search, confidence gate, citation-tagged prompt, `/ask` API + CLI
-- [ ] Phase 3: eval set and metrics
+- [x] Phase 3: eval set and metrics (`evals/`)
+- [ ] Phase 4: keyword search + rank fusion, sentence-level citation links

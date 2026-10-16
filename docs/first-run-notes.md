@@ -29,6 +29,11 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
    pooling", which would silently corrupt embeddings if true. Checked the pooling mode and vector
    equality instead of assuming either way: it was a misleading log line. (Entry 9d)
 
+6. *The eval overturned a tuning decision.* Tuning the similarity cutoff on dev data said 0.61;
+   the holdout showed no gain, and the end-to-end run showed the LLM's NOT_FOUND rule, not the
+   cutoff, rejected 6 of 8 unanswerable questions, including near-topic ones that outscored real
+   answers. Kept 0.55. Results: hit@5 93%, 86% gold citations, 100% abstention. (Entry 10)
+
 **Deliberately deferred:** citation links can be up to ~45 s early (chunk-start granularity),
 sponsor/outro chunks are indexed, and captions misspell terms. Each one needs the Phase 3 eval
 to measure the fix.
@@ -262,3 +267,60 @@ yt-dlp uses `deno` for that and warned that extraction without it is deprecated.
   timestamps per chunk (schema change + re-ingest).
 - Sponsor segment and outro chunks indexed as content; caption typos ("Postgrql").
   Filters should be measured against the eval set, not added blind.
+
+## 10. Phase 3: eval set and metrics
+
+**What we built (no new dependencies).**
+- `evals/questions.jsonl`: 29 answerable questions (17 Postgres talk, 12 AI talk) and 8
+  unanswerable ones, 5 of which are deliberately near-topic (MySQL locking, Postgres
+  partitioning, Kafka partitions, BM25, GPT-5 pricing). Gold timestamps aren't eyeballed:
+  each question has a short gold phrase, and the second it's spoken is looked up in the
+  caption word timings. Every third question is held out (20+5 dev, 9+3 holdout).
+- `evals/metrics.py`: pure functions (hit@k, MRR, link error, gate pass/reject rates,
+  threshold picker); 6 new unit tests, 36 total.
+- `evals/run.py`: retrieval eval with no LLM calls, a MIN_SCORE sweep tuned on dev and
+  reported on holdout, and `--llm` for end to end with a 7 s delay for free-tier limits.
+  Raw results go to `data/evals/` (gitignored) so runs can be compared.
+
+**Results (youtube captions, k=5, gemini-3.5-flash-lite).**
+
+| Metric | dev | holdout | all |
+|---|---|---|---|
+| hit@1 | 60% | 56% | 59% |
+| hit@5 | 95% | 89% | 93% |
+| MRR | 0.75 | 0.70 | 0.74 |
+| citation link <=15 s early | 53% | 12% | 41% |
+
+End to end: 90% of answerable questions answered, 86% cited the gold moment, **100% of
+unanswerable questions abstained**, p50 latency 882 ms, 0 LLM errors.
+
+**What the numbers say.**
+1. *The score gate can't detect near-topic questions; the LLM can.* Unanswerable top scores
+   reach 0.740 (Postgres partitioning) and 0.705 (MySQL locking), higher than answerable ones
+   like "What is an LSN?" (0.516). Tuning MIN_SCORE on dev picked 0.61 (98% balanced on dev)
+   but it scored 67% on holdout, the same as the current 0.55: textbook overfitting, caught
+   by the holdout. In the end-to-end run the gate stopped 2 of 8 unanswerable questions and
+   the prompt's NOT_FOUND rule stopped the other 6. So the gate is a cost filter, not the
+   safety mechanism, and MIN_SCORE was left at 0.55.
+2. *The gate costs recall.* "What is an LSN?" (0.516) was rejected before the LLM saw the right
+   chunk (rank 3). Short acronym questions embed weakly.
+3. *Caption typos hurt retrieval, measurably.* "What metadata does each tuple carry?" ranked a
+   chunk from the *other* video first, because the captions say "tpples", never "tuple".
+4. *Rare terms miss entirely.* "What is the postmaster?" has the gold chunk outside the top 5
+   (top 1 was the intro). Keyword search over the existing `tsv` column (Phase 4) targets this.
+5. *Many hit@1 misses are the neighbouring chunk.* E.g. "object-relational": gold at 1:19, top 1
+   starts at 1:24 with the explanation sentence. The strict point-in-span metric undercounts
+   near misses; MRR and hit@5 tell the fuller story.
+6. *Citation links are the weakest part.* Only 41% land within 15 s (median 17 s early, max 44 s).
+   That puts a number on the chunk-start issue from 9c and makes sentence-level links the
+   top Phase 4 item.
+7. *The lite model is slightly over-cautious.* "How does a typical RAG pipeline prepare documents?"
+   got NOT_FOUND although the gold chunk was retrieved (rank 3).
+
+**Caveats.** 37 questions over 2 talks, written by the same person tuning the system. The holdout
+has only 3 unanswerable questions, so its gate numbers move in 33-point steps. Good for spotting
+failure modes, not for claiming a precise accuracy.
+
+**Interview takeaway.** The eval changed a decision: without it, I'd have "tuned" MIN_SCORE to 0.61
+from dev numbers. The holdout showed it didn't generalise, and the end-to-end run showed the
+LLM's abstention, not the threshold, is what keeps answers honest.
