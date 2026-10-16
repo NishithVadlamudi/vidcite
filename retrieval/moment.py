@@ -18,6 +18,8 @@ LINK_LEAD_S = 8.0  # smallest of the tied-best leads: least unrelated speech for
 
 def sentence_times(passage) -> list[tuple[float, str]]:
     """[(estimated_start_s, sentence), ...] for each sentence in the chunk."""
+    if getattr(passage, "times", None):  # merged passage: already estimated per original chunk
+        return passage.times
     sentences = [s for s in SENTENCE_BREAK.split(passage.text) if s.strip()]
     total = sum(len(s.split()) for s in sentences)
     if not total:

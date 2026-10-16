@@ -4,6 +4,7 @@
     python -m evals.run --llm                 # also full answers via the LLM (slow, rate-limited)
     python -m evals.run --source whisper      # compare transcript sources
     python -m evals.run --retrieval hybrid    # vector + keyword search fused with RRF
+    python -m evals.run --merge on            # join adjacent retrieved chunks
 
 The MIN_SCORE cutoff is tuned on the dev split and reported on the holdout split,
 so the holdout number is an honest estimate. Raw results go to data/evals/.
@@ -29,7 +30,7 @@ def load_questions() -> list[dict]:
     return [json.loads(line) for line in QUESTIONS.read_text().splitlines() if line.strip()]
 
 
-def run_retrieval(conn, questions, source: str, k: int, hybrid: bool) -> list[dict]:
+def run_retrieval(conn, questions, source: str, k: int, hybrid: bool, merge: bool) -> list[dict]:
     from ingest.embed import QUERY_DEVICE, embed_passages, embed_query, get_model
     from retrieval.moment import best_moment
     from retrieval.search import retrieve, top_score
@@ -37,9 +38,13 @@ def run_retrieval(conn, questions, source: str, k: int, hybrid: bool) -> list[di
     embed_texts = lambda texts: embed_passages(texts, model=get_model(QUERY_DEVICE))
     rows = []
     for q in questions:
-        passages, _ = retrieve(conn, q["question"], k=k, source=source, min_score=-1.0, hybrid=hybrid)
+        passages, _ = retrieve(conn, q["question"], k=k, source=source, min_score=-1.0,
+                               hybrid=hybrid, merge=merge)
         row = {**q, "answerable": q["video_id"] is not None,
                "top_score": top_score(passages) if passages else 0.0,
+               "keyword_pass": any(p.all_terms for p in passages),
+               "n_passages": len(passages),
+               "context_s": sum(p.end_s - p.start_s for p in passages),
                "top": [(p.video_id, p.start_s, p.end_s, round(p.score, 3)) for p in passages]}
         if row["answerable"]:
             rank = first_hit_rank(passages, q["video_id"], q["gold_s"])
@@ -55,7 +60,7 @@ def run_retrieval(conn, questions, source: str, k: int, hybrid: bool) -> list[di
     return rows
 
 
-def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool) -> None:
+def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool, merge: bool) -> None:
     """Adds the full answer to each row. Sleeps between calls for free-tier rate limits."""
     from api.answer import answer_question
     from api.llm import LLMUnavailable
@@ -64,7 +69,7 @@ def run_llm(conn, rows, source: str, k: int, delay_s: float, hybrid: bool) -> No
         if i:
             time.sleep(delay_s)
         try:
-            r = answer_question(conn, row["question"], source=source, k=k, hybrid=hybrid)
+            r = answer_question(conn, row["question"], source=source, k=k, hybrid=hybrid, merge=merge)
         except LLMUnavailable as e:
             row["llm"] = {"error": str(e)}
             continue
@@ -106,6 +111,11 @@ def report(rows, k: int, current_min: float) -> dict:
     ans = sorted(r["top_score"] for r in rows if r["answerable"])
     una = sorted(r["top_score"] for r in rows if not r["answerable"])
     print(f"  top_score ranges: answerable {ans[0]:.3f}-{ans[-1]:.3f}, unanswerable {una[0]:.3f}-{una[-1]:.3f}")
+    kw = [r for r in rows if r.get("keyword_pass")]
+    print(f"  keyword pass (every question word in one chunk): "
+          f"{sum(r['answerable'] for r in kw)} answerable, {sum(not r['answerable'] for r in kw)} unanswerable")
+    print(f"  passages per question {sum(r['n_passages'] for r in rows) / len(rows):.1f}, "
+          f"context {sum(r['context_s'] for r in rows) / len(rows):.0f} s of talk")
     out["gate"] = {"current": current_min, "tuned": t}
 
     misses = [r for r in rows if r["answerable"] and r["rank"] != 1]
@@ -151,28 +161,31 @@ def main() -> None:
     p.add_argument("--k", type=int, default=5)
     p.add_argument("--retrieval", default=None, choices=["vector", "hybrid"],
                    help="default: the app's setting (HYBRID env var)")
+    p.add_argument("--merge", default=None, choices=["on", "off"], help="default: the app's setting (MERGE env var)")
     p.add_argument("--llm", action="store_true", help="also generate answers (uses LLM quota)")
     p.add_argument("--llm-delay", type=float, default=7.0, help="seconds between LLM calls")
     a = p.parse_args()
 
     from ingest.store import connect
-    from retrieval.search import HYBRID, MIN_SCORE
+    from retrieval.search import HYBRID, MERGE, MIN_SCORE
 
     hybrid = HYBRID if a.retrieval is None else a.retrieval == "hybrid"
+    merge = MERGE if a.merge is None else a.merge == "on"
     a.retrieval = "hybrid" if hybrid else "vector"
-    print(f"source={a.source}  retrieval={a.retrieval}  k={a.k}")
+    a.merge = "on" if merge else "off"
+    print(f"source={a.source}  retrieval={a.retrieval}  merge={a.merge}  k={a.k}")
     conn = connect()
     try:
-        rows = run_retrieval(conn, load_questions(), a.source, a.k, hybrid)
+        rows = run_retrieval(conn, load_questions(), a.source, a.k, hybrid, merge)
         summary = report(rows, a.k, MIN_SCORE)
         if a.llm:
-            run_llm(conn, rows, a.source, a.k, a.llm_delay, hybrid)
+            run_llm(conn, rows, a.source, a.k, a.llm_delay, hybrid, merge)
             summary["llm"] = report_llm(rows)
     finally:
         conn.close()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{a.source}-{a.retrieval}.json"
+    out = OUT_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{a.source}-{a.retrieval}-merge{a.merge}.json"
     out.write_text(json.dumps({"args": vars(a), "summary": summary, "rows": rows}, indent=1, default=str))
     print(f"\nSaved {out}")
 

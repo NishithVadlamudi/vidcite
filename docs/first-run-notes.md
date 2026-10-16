@@ -40,8 +40,13 @@ top_score 0.75. CLI latency went 23.0 s → 8.6 s → ~5.3 s; the LLM call itsel
    estimated from word offsets) plus an 8 s lead-in tuned on dev took on-time links from
    37% to 93% end to end. (Entry 11)
 
-**Deliberately deferred:** neighbour merging (overlapping chunks can cite the same moment twice),
-sponsor/outro chunks are indexed, and captions misspell terms. Each fix should be measured with the eval.
+8. *Reporting a negative result.* Merging adjacent chunks looked like an obvious win (hit@1 76% -> 93%),
+   but that number was inflated by longer passages, and end to end it made citation links worse
+   (93% -> 83% on time) with no gain in answers. Kept it off and fixed the visible symptom (duplicate
+   links) in the CLI instead. Similarly, Whisper tied with free captions, so captions stay the default. (Entry 12)
+
+**Deliberately deferred:** sponsor/outro chunks are indexed; the eval set is small (37 questions,
+2 talks). Each fix should be measured with the eval.
 
 ---
 
@@ -382,3 +387,41 @@ The latency cost (~0.3 s) is the extra keyword query plus embedding a chunk's se
   comparison) but ~6 s after the question's gold moment (4:09, where HNSW is introduced).
   Gold labels mark where a topic *starts*; a claim can be later. The metric is a proxy.
 - 47 tests pass (11 new: RRF, moments, claims, lead-in clamp, link_s on answers).
+
+## 12. Phase 4.1: keyword gate, neighbour merging, Whisper vs captions
+
+**A. Keyword exception to the confidence gate (kept, on).** The keyword query now also returns
+`all_terms` (`tsv @@ plainto_tsquery(question)`: the chunk contains every content word).
+`retrieve()` passes the gate if the best cosine is at least MIN_SCORE *or* any retrieved chunk
+has all_terms. RRF keeps the flag when the same chunk comes from both lists.
+- Retrieval eval: 9 answerable questions get a keyword pass, **0 unanswerable**. Gate pass rate
+  on dev went 95% -> 100% with no change to rejections.
+- End to end (merge off): answered 90-93% -> **100%**, cited the gold moment 93% -> **100%**,
+  abstention still **100%**, links on time 93%, p50 1,023 ms. "What is an LSN?" (cosine 0.516)
+  is now answered with a link 11 s before the gold moment.
+
+**B. Neighbour merging (built, measured, left off).** Adjacent retrieved chunks from the same video
+are joined into one passage, dropping the overlap sentence.
+- Retrieval hit@1 76% -> 93%, but that's mostly an artefact: merged passages are longer (3.2 passages
+  per question instead of 5, about the same 220-230 s of talk), so "first passage contains gold" is
+  easier. hit@5 unchanged at 100%.
+- Sentence links got *worse*: 86% -> 62% on time. First hypothesis: estimating sentence times over a
+  90-140 s merged span drifts more. Fixed that by estimating per original chunk and carrying the times
+  on the merged passage: only 62% -> 66%. So the real cause was sentence *selection*: more candidate
+  sentences means more chances to pick one elsewhere in the passage.
+- End to end: identical answer quality (100% / 100% / 100%), links 93% (off) vs 83% (on).
+  **Decision: MERGE stays off** (`MERGE=1` enables it). The symptom it would fix, duplicate links
+  (3/29 answers cite two overlapping chunks at the same moment), is handled in the CLI by printing
+  each link once with all its tags, e.g. `[S1][S2] ... @ 11:39`. The API still returns every citation.
+
+**C. Whisper vs YouTube captions.** `python -m ingest.cli P8rrhZTPEAQ A2QrRXCypm4 --source whisper`
+took **151 s** for ~20 min of video, including audio and model downloads (mlx-whisper small.en on the
+M2 GPU, roughly 8x real time). My earlier estimate of 1-2 min per video minute was far too pessimistic.
+- Whisper spells "tuple" correctly (7x; captions had "tpples").
+- Retrieval: hit@1 79% vs 76%, hit@5 100% both, MRR 0.87 both, sentence links 83% vs 86%. A tie at this
+  sample size (1-2 questions). Hybrid search had already rescued the "tpples" question via "xmin"/"xmax".
+  Whisper's top scores run slightly higher across the board (0.525-0.889 vs 0.516-0.869), consistent
+  with cleaner text.
+- **Decision: captions stay the default** (free, instant); Whisper is for videos without captions.
+
+52 tests pass (6 new: merging, all_terms through RRF, keyword gate, per-chunk times, gate metric).

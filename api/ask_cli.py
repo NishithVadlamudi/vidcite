@@ -24,9 +24,13 @@ def main():
     finally:
         conn.close()
     print("\n" + r["answer"] + "\n")
+    # Overlapping chunks can cite the same moment; show each link once with all its tags.
+    links: dict[tuple[str, int], list[dict]] = {}
     for c in r["citations"]:
-        t = int(c["link_s"])
-        print(f"  [S{c['n']}] {c['title']} @ {format_ts(c['link_s'])}  https://youtu.be/{c['video_id']}?t={t}")
+        links.setdefault((c["video_id"], int(c["link_s"])), []).append(c)
+    for (video_id, t), cs in links.items():
+        tags = "".join(f"[S{c['n']}]" for c in cs)
+        print(f"  {tags} {cs[0]['title']} @ {format_ts(t)}  https://youtu.be/{video_id}?t={t}")
     print(f"\n  found={r['found']}  top_score={r['top_score']}  latency={r['latency_ms']} ms")
 
 

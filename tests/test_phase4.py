@@ -1,7 +1,7 @@
 from api.answer import answer_question
 from api.citations import claims_for
 from retrieval.moment import LINK_LEAD_S, best_moment, sentence_times
-from retrieval.search import Passage, rrf, top_score
+from retrieval.search import Passage, merge_neighbours, retrieve, rrf, top_score
 
 
 def p(idx, score=0.5, video="vidA", start=0.0, end=10.0, text="x."):
@@ -93,3 +93,55 @@ def test_answer_citations_link_to_the_matching_sentence():
     c = r["citations"][0]
     assert c["start_s"] == 100.0  # chunk span unchanged
     assert c["link_s"] == round(100 + 20 * 4 / 14 - LINK_LEAD_S, 2)  # HNSW sentence, minus lead-in
+
+
+# --- neighbour merging ---------------------------------------------------------
+
+def test_merge_joins_adjacent_chunks_and_drops_the_shared_sentence():
+    a = Passage("vidA", "talk", 4, 100.0, 145.0, "One. Two. Shared.", 0.6)
+    b = Passage("vidA", "talk", 5, 141.0, 190.0, "Shared. Three.", 0.8)
+    far = Passage("vidA", "talk", 9, 400.0, 440.0, "Far away.", 0.7)
+    merged = merge_neighbours([b, far, a])  # rank order: b first
+    assert len(merged) == 2
+    m = merged[0]
+    assert (m.chunk_index, m.start_s, m.end_s) == (4, 100.0, 190.0)
+    assert m.text == "One. Two. Shared. Three."
+    assert m.score == 0.8
+    # "Three." is timed inside chunk 5 (141-190 s), not spread over the merged 100-190 s
+    assert sentence_times(m)[-1] == (141.0 + 49.0 * 1 / 2, "Three.")
+    assert merged[1] is far
+
+
+def test_merge_never_joins_different_videos():
+    a = Passage("vidA", "talk", 4, 0.0, 10.0, "A.", 0.6)
+    b = Passage("vidB", "talk", 5, 0.0, 10.0, "B.", 0.6)
+    assert merge_neighbours([a, b]) == [a, b]
+
+
+def test_rrf_keeps_the_all_terms_flag_from_keyword_results():
+    vec = [p(1)]
+    kw = [Passage("vidA", "talk", 1, 0.0, 10.0, "x.", 0.5, all_terms=True)]
+    assert rrf([vec, kw], k=1)[0].all_terms is True
+
+
+# --- keyword exception to the confidence gate ----------------------------------
+
+class KeywordCursor(FakeCursor):
+    def fetchall(self):
+        return [(x.video_id, x.title, x.chunk_index, x.start_s, x.end_s, x.text, x.score, x.all_terms)
+                for x in self.rows] if self.sql_has_keyword else super().fetchall()
+
+    def execute(self, sql, params):
+        self.sql_has_keyword = "plainto_tsquery" in sql
+
+
+class KeywordConn(FakeConn):
+    def cursor(self): return KeywordCursor(self.rows)
+
+
+def test_weak_cosine_passes_gate_when_every_word_matches():
+    lsn = Passage("vidA", "talk", 16, 700.0, 750.0, "The LSN marks a point.", 0.51, all_terms=True)
+    _, found = retrieve(KeywordConn([lsn]), "What is an LSN?", embed=lambda q: [0.0], hybrid=True)
+    assert found is True
+    _, found = retrieve(KeywordConn([lsn]), "What is an LSN?", embed=lambda q: [0.0], hybrid=False)
+    assert found is False  # vector-only: no keyword evidence, 0.51 < 0.55

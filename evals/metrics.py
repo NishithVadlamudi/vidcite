@@ -62,13 +62,18 @@ def summarize_retrieval(rows: list[dict], k: int) -> dict:
     }
 
 
+def gate_passes(row: dict, threshold: float) -> bool:
+    """Mirrors retrieve(): cosine cutoff, or a chunk containing every question word."""
+    return row["top_score"] >= threshold or row.get("keyword_pass", False)
+
+
 def gate_scores(rows: list[dict], threshold: float) -> dict:
-    """How well a top_score cutoff separates answerable from unanswerable questions.
-    rows: {"answerable": bool, "top_score": float}."""
+    """How well the gate separates answerable from unanswerable questions.
+    rows: {"answerable": bool, "top_score": float, "keyword_pass": bool (optional)}."""
     ans = [r for r in rows if r["answerable"]]
     una = [r for r in rows if not r["answerable"]]
-    pass_rate = sum(r["top_score"] >= threshold for r in ans) / len(ans) if ans else None
-    reject_rate = sum(r["top_score"] < threshold for r in una) / len(una) if una else None
+    pass_rate = sum(gate_passes(r, threshold) for r in ans) / len(ans) if ans else None
+    reject_rate = sum(not gate_passes(r, threshold) for r in una) / len(una) if una else None
     parts = [x for x in (pass_rate, reject_rate) if x is not None]
     return {"threshold": threshold, "pass_rate": pass_rate, "reject_rate": reject_rate,
             "balanced": sum(parts) / len(parts) if parts else None}

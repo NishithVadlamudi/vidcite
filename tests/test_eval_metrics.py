@@ -68,3 +68,10 @@ def test_best_threshold_picks_middle_of_tied_range():
     # 0.59, 0.60, 0.61, 0.62 all separate perfectly; the middle one is chosen.
     best = best_threshold(GATE, [0.55, 0.59, 0.60, 0.61, 0.62, 0.65])
     assert best["balanced"] == 1.0 and best["threshold"] == 0.61
+
+
+def test_keyword_pass_overrides_the_cutoff():
+    rows = [{"answerable": True, "top_score": 0.50, "keyword_pass": True},
+            {"answerable": False, "top_score": 0.50}]
+    g = gate_scores(rows, 0.55)
+    assert g["pass_rate"] == 1.0 and g["reject_rate"] == 1.0
