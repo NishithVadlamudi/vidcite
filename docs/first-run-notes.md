@@ -821,3 +821,28 @@ attempts. The 93-question end-to-end run (which also completes entry 18's pendin
 **Interview takeaway.** Two "obvious" fixes, measured: fusing reranker and search orders (rejected on holdout) and fixing
 the transcript spelling (kept for correctness, but it moved no metric). The bigger, more varied eval keeps showing
 that the first explanation isn't always the real cause.
+
+## 21. Preparing to host on Hugging Face Spaces
+
+**Why Spaces.** Every question runs Python plus two small models (~1-1.5 GB RAM). GitHub only stores code and Supabase
+and Gemini are services, so something has to run the app. Free tiers on Render/Railway have ~512 MB (too small for
+PyTorch) and Vercel can't run PyTorch. A free CPU Space (2 vCPU, 16 GB) fits; it sleeps after a couple of days idle.
+
+**Built (nothing deployed yet):**
+- `api/limits.py`: per-visitor limit (rolling hour) and a site-wide daily cap on LLM calls, in memory, no new
+  dependencies, off unless env vars set them. Past the daily cap `/ask` answers in search-only mode instead of
+  failing, so visitors can't exhaust the Gemini quota and the demo keeps working. Visitor = last
+  `X-Forwarded-For` entry (the one the proxy adds; earlier ones can be spoofed); the daily cap protects the quota
+  regardless. UI shows a friendly notice on 429. 5 tests; 73 pass.
+- `Dockerfile` (CPU-only torch, ~2 GB smaller than CUDA; models downloaded at build time; non-root user 1000;
+  port 7860; limits 10/hour, 150/day), `.dockerignore` (no `.env`, data, tests), `requirements-serve.txt` (serving
+  deps only, pinned to the versions the evals ran with; no yt-dlp/Whisper).
+- `scripts/deploy_space.sh`: builds the Space from `git archive HEAD`, refuses to run with uncommitted changes, so
+  `.env` can't be uploaded by accident; adds `deploy/hf-space/README.md` (Space metadata) and pushes.
+- `deploy/hf-space/readonly_role.sql`: a SELECT-only login. The tables have RLS on and the app normally connects as
+  the owner (which bypasses RLS), so the new role needs explicit select policies; the policies name only this role,
+  so Supabase's public REST roles stay blocked. The user runs it with their own password.
+- CC BY: the talks require attribution, so the UI's library now shows each talk's channel, plus a footer credit.
+
+**Checked locally:** server restarted with the changes; library shows channels; `/ask` returned search-only results
+in 0.7 s (Gemini quota still exhausted). Not yet checked: building the image (Docker Desktop wasn't running).

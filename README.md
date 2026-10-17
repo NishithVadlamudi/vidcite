@@ -120,6 +120,20 @@ start mid-sentence (tuned on lecture talks; a tutorial-specific value isn't supp
 
 Analysis in `docs/first-run-notes.md`.
 
+## Deploy (Hugging Face Spaces)
+
+The `Dockerfile` serves the web UI + API only (CPU torch, both models baked in, port 7860); ingestion
+stays local. Public-demo limits are on in the image: 10 questions per visitor per hour and 150 generated
+answers per day, after which `/ask` answers in search-only mode (`api/limits.py`).
+
+1. Create a read-only database login: run `deploy/hf-space/readonly_role.sql` in Supabase's SQL editor
+   (choose your own password).
+2. Create a **Docker** Space (free CPU basic). In its settings add secrets `DATABASE_URL` (the read-only
+   login) and `GEMINI_API_KEY` (ideally a key from a separate Google project, so the demo can't use your
+   eval quota).
+3. Commit, then `scripts/deploy_space.sh https://huggingface.co/spaces/<user>/vidcite`. It builds the Space
+   from `HEAD` only, so `.env` and uncommitted files never leave your machine.
+
 ## Status
 
 - [x] Schema
@@ -138,4 +152,5 @@ Analysis in `docs/first-run-notes.md`.
 - [x] Local web UI with embedded player; search-only fallback when the LLM is unavailable
 - [x] Two talks that YouTube blocked for captions ingested via Whisper (6 talks)
 - [x] Gold questions for the two new talks (93-question eval)
-- [ ] Next: 93-question end-to-end run (after the quota resets); hosting (e.g. Hugging Face Spaces) with rate limiting and a read-only DB role
+- [x] Deployment files for Hugging Face Spaces, usage limits, read-only DB role SQL, CC BY credits in the UI
+- [ ] Next: create the Space; 93-question end-to-end run (after the quota resets)

@@ -95,7 +95,8 @@
   </aside>
 </main>
 
-<footer>Answers are generated only from the talks' transcripts; timestamps come from the database, never from the model.</footer>
+<footer>Answers are generated only from the talks' transcripts; timestamps come from the database, never from the model.
+  Talks are used under their Creative Commons Attribution licences; credit belongs to the channels listed.</footer>
 
 <script>
 const EXAMPLES = [
@@ -175,6 +176,11 @@ async function ask(question) {
   try {
     const res = await fetch("/ask", { method: "POST", headers: { "Content-Type": "application/json" },
                                        body: JSON.stringify({ question }) });
+    if (res.status === 429) {  // per-visitor limit on the hosted demo
+      const detail = (await res.json().catch(() => ({}))).detail ?? "Too many questions; try again later.";
+      $("result").replaceChildren(el("div", { className: "notice", textContent: detail }));
+      return;
+    }
     if (!res.ok) throw new Error(`${res.status} ${(await res.json().catch(() => ({}))).detail ?? res.statusText}`);
     render(await res.json());
   } catch (e) {
@@ -189,8 +195,10 @@ $("examples").append(...EXAMPLES.map((q) => el("button", { type: "button", textC
   onclick: () => { $("q").value = q; ask(q); } })));
 
 fetch("/videos").then((r) => r.json()).then((vs) => {
+  // Talks are CC BY: credit the channel next to each title.
   $("library").replaceChildren(...vs.map((v) => el("li", {},
-    el("span", { textContent: v.title }), el("span", { textContent: v.duration_s ? fmt(v.duration_s) : "" }))));
+    el("span", { textContent: v.channel ? `${v.title} · ${v.channel}` : v.title }),
+    el("span", { textContent: v.duration_s ? fmt(v.duration_s) : "" }))));
 }).catch(() => $("library").replaceChildren(el("li", { textContent: "Couldn't load the library." })));
 </script>
 </body>

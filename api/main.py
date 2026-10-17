@@ -8,19 +8,21 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
 
 from api.answer import answer_question, search_only
+from api.limits import Limits, visitor_id
 from api.llm import LLMUnavailable
 
 load_dotenv()
 pool: ConnectionPool | None = None
 log = logging.getLogger("api")
 STATIC = Path(__file__).with_name("static")
+limits = Limits()  # off unless ASK_LIMIT_PER_HOUR / LLM_DAILY_LIMIT are set (the Dockerfile sets them)
 
 
 @asynccontextmanager
@@ -67,8 +69,13 @@ class AskResponse(BaseModel):
 
 
 @app.post("/ask", response_model=AskResponse)
-def ask(req: AskRequest):  # sync def: FastAPI runs it in a thread pool
+def ask(req: AskRequest, request: Request):  # sync def: FastAPI runs it in a thread pool
+    wait_s = limits.visitor_wait_s(visitor_id(request.headers, request.client and request.client.host))
+    if wait_s:
+        raise HTTPException(429, f"You've asked a lot of questions; try again in {max(1, round(wait_s / 60))} min.")
     with pool.connection() as conn:
+        if not limits.take_llm_call():  # demo's daily LLM budget used up: still show the moments
+            return search_only(conn, req.question, source=req.source, video_id=req.video_id)
         try:
             return answer_question(conn, req.question, source=req.source, video_id=req.video_id)
         except LLMUnavailable as e:  # e.g. Gemini free-tier quota or 503: still show the moments
