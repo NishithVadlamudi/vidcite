@@ -845,4 +845,14 @@ PyTorch) and Vercel can't run PyTorch. A free CPU Space (2 vCPU, 16 GB) fits; it
 - CC BY: the talks require attribution, so the UI's library now shows each talk's channel, plus a footer credit.
 
 **Checked locally:** server restarted with the changes; library shows channels; `/ask` returned search-only results
-in 0.7 s (Gemini quota still exhausted). Not yet checked: building the image (Docker Desktop wasn't running).
+in 0.7 s (Gemini quota still exhausted).
+
+**Image tested locally (Docker Desktop, linux/arm64).** Built in 84 s, 1.67 GB. Ran it with `--env-file .env`
+(secrets passed at runtime, not baked in) on port 8080: healthy after ~14 s (models loaded from the image, no
+download), 496 MB RAM. The build printed the misleading "Creating a new one with mean pooling" line again, so I
+checked inside the container instead of assuming: pooling is CLS and the query vector matches the Mac's exactly
+(cosine 1.000000). `/`, `/videos` (6 talks) and `/ask` work (same TOAST moments and top score as the local server;
+search-only because the quota was still exhausted). Per-visitor limit: questions 1-10 returned 200, the 11th returned
+429 "try again in 59 min", and the page shows it as a notice, not an error. Not covered: Hugging Face runs
+linux/amd64, while this build was arm64. Platform-specific failures are rare for pure-Python wheels plus CPU torch,
+but the Space's own build log is the final check.
