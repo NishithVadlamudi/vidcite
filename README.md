@@ -3,12 +3,11 @@
 Ask a question about a library of long technical talks; get a short answer with
 clickable timestamps that jump the video to the exact moment.
 
-![vidcite web UI: an answer about why PostgreSQL is object-relational, with citation buttons S1 and S2 and an embedded player paused at the cited moment](docs/screenshot.jpg)
+![Animated walkthrough of the vidcite demo: an answer with citation buttons, the embedded player jumping to each cited moment, and a refusal for a question the talks don't cover](docs/demo.gif)
 
 **[Try the recorded demo →](https://nishithvadlamudi.github.io/vidcite/)** (real answers from an eval run, replayed without a server)
 
-*The local web UI (`uvicorn api.main:app`). The answer shown is a real response recorded during an eval run
-(1.6 s), replayed through the page's own renderer; each `[S1]` jumps the embedded player to the cited second.*
+*Walkthrough made from screenshots of the demo page; the answers are real responses recorded during an eval run.*
 
 ## Setup
 
@@ -46,6 +45,11 @@ uvicorn api.main:app --reload
 # Or from the terminal
 python -m api.ask_cli "How does Raft elect a leader?"
 ```
+
+![vidcite local web UI: an answer about why PostgreSQL is object-relational, with citation buttons S1 and S2 and an embedded player paused at the cited moment](docs/screenshot.jpg)
+
+*The local web UI. The answer shown is a real response recorded during an eval run (1.6 s), replayed through
+the page's own renderer.*
 
 The web UI (`api/static/index.html`, no build step or dependencies) shows the answer with its `[S1]` tags
 as buttons that jump an embedded YouTube player to the cited second, the matching moments, and the talks

@@ -168,6 +168,7 @@ function render(r) {
     `${r.search_only ? "search only" : r.found ? "answered" : "not found"} · top score ${r.top_score ?? "–"} · ${r.latency_ms} ms` }));
   $("result").replaceChildren(...out);
   if (r.citations.length) play(r.citations[0]);
+  else $("player").replaceChildren("No moment to play: this answer has no citations");  // don't leave an unrelated clip up
 }
 
 async function ask(question) {

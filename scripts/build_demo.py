@@ -82,6 +82,10 @@ def build_page() -> str:
     </form>
     <div class="examples" id="examples"></div>''', '''    <h2>Pick a question</h2>
     <div class="qs" id="questions"></div>'''),
+        # The answer goes above the 12 questions; below them it was off-screen on a laptop.
+        ('''    <div id="result" aria-live="polite"></div>''', ""),
+        ('''    <h2>Pick a question</h2>''', '''    <div id="result" aria-live="polite"></div>
+    <h2 style="margin-top:18px">Pick a question</h2>'''),
         ("credit belongs to the channels listed.</footer>", f'''credit belongs to the channels listed.
   <a href="{REPO}">vidcite on GitHub</a> · <a href="{REPO}/blob/main/docs/first-run-notes.md">build and eval notes</a></footer>'''),
     ]
@@ -111,6 +115,7 @@ fetch("demo-data.json").then((r) => r.json()).then((data) => {
       const b = el("button", { type: "button", textContent: a.question, onclick: () => {
         buttons.forEach((x) => x.classList.toggle("active", x === b));
         render(a.response);
+        $("result").scrollIntoView({ block: "nearest", behavior: "smooth" });  // phones: answer may be above the fold
       } });
       buttons.push(b); $("questions").append(b);
     }

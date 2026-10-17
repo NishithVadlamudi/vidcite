@@ -87,9 +87,10 @@
 
 <main>
   <section class="panel">
-    <h2>Pick a question</h2>
-    <div class="qs" id="questions"></div>
     <div id="result" aria-live="polite"></div>
+    <h2 style="margin-top:18px">Pick a question</h2>
+    <div class="qs" id="questions"></div>
+
   </section>
 
   <aside class="side">
@@ -170,6 +171,7 @@ function render(r) {
     `recorded answer · ${r.found ? "answered" : "refused: not in the talks"} · top score ${r.top_score ?? "–"}` }));
   $("result").replaceChildren(...out);
   if (r.citations.length) play(r.citations[0]);
+  else $("player").replaceChildren("No moment to play: this answer has no citations");  // don't leave an unrelated clip up
 }
 
 
@@ -185,6 +187,7 @@ fetch("demo-data.json").then((r) => r.json()).then((data) => {
       const b = el("button", { type: "button", textContent: a.question, onclick: () => {
         buttons.forEach((x) => x.classList.toggle("active", x === b));
         render(a.response);
+        $("result").scrollIntoView({ block: "nearest", behavior: "smooth" });  // phones: answer may be above the fold
       } });
       buttons.push(b); $("questions").append(b);
     }

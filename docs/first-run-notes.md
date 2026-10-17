@@ -881,3 +881,14 @@ is a plain-HTML GitHub Pages site whose project cards use a before/after format 
   in a 373 px window): the citation list is a CSS grid whose column grew to fit the un-wrapped title. One rule
   (`grid-template-columns: minmax(0, 1fr)`) fixed it in the live UI too; the earlier phone check had missed it because
   that answer had no citations.
+
+**Walkthrough GIF (`docs/demo.gif`).** A real-time screen recording wasn't possible from the session (the browser tool
+takes screenshots; recording the user's actual screen would capture everything else on it), so the GIF is five screenshots
+of the demo page with captions: pick a question, answer + player at the cited second, the S2 chip jumping the player,
+a second talk, and a refusal. 397 KB, 16 s loop. Gemini's quota was still exhausted, so it shows the recorded demo, and says so.
+
+Recording it found two UX issues, both fixed in the live UI and the demo:
+- **The demo's answer rendered below all 12 question buttons**, off-screen on a laptop, so clicking seemed to do nothing.
+  The answer now sits above the questions and scrolls into view on click (phones).
+- **After a refusal, the player kept showing the previous answer's clip**, implying it related to the refused question.
+  With no citations, the player now resets to "No moment to play: this answer has no citations".
