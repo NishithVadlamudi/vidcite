@@ -16,7 +16,9 @@ from pathlib import Path
 TRANSCRIPT_DIR = Path("data/transcripts")
 
 # Technical terms Whisper tends to misspell; extend this for your talks.
-GLOSSARY = "Kafka, Postgres, pgvector, Kubernetes, Raft, Paxos, HNSW, RAG, LLM, sharding, gRPC"
+# ChatGPT etc. added after Whisper wrote "chatgbt" throughout the Pokemon challenge talk.
+GLOSSARY = ("Kafka, Postgres, pgvector, Kubernetes, Raft, Paxos, HNSW, RAG, LLM, sharding, gRPC, "
+            "ChatGPT, Gemini, Copilot, Claude, Pokemon")
 
 MLX_MODEL = "mlx-community/whisper-small.en-mlx"   # try whisper-large-v3-turbo for accuracy
 CPU_MODEL = "small.en"

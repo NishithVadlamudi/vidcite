@@ -780,3 +780,44 @@ API endpoint, so `answer_question` and the eval still see LLM failures as errors
 the player set to 4:16 (the phone-width screenshot showed the embed playing that slide); "capital of France" not
 found in 0.7 s with no LLM call; no console errors. Search-only checked directly against the database. One quirk:
 the preview pane drew the YouTube embed late (it looked black at first), not a bug in the page.
+
+## 20. Two new talks in the eval, a reranker trade-off, and a spelling fix that didn't help
+
+**New gold questions.** 24 for the two Whisper-only talks ("AI Can Copy Any App Now" about REA, and "ChatGPT vs
+Gemini Make Pokemon From Scratch") plus 4 near-topic unanswerable ones, user-reviewed. With no captions, gold seconds
+come from Whisper word timings (`gold_source: "whisper"`). Left out borderline unanswerables the talk partly answers
+(e.g. yearly club price, which the model could compute from $9/month). Eval is now 93 questions: 77 answerable
+(52 dev / 25 holdout), 16 unanswerable.
+
+**Retrieval on 77 answerable:** hit@1 78%, hit@5 92%, MRR 0.84 (first 53 unchanged). REA talk 83%/83%; the
+Pokemon talk is by far the hardest: hit@1 42%, hit@5 67%, MRR 0.52. It's informal play-by-play commentary, and
+Whisper wrote it with almost no full stops.
+
+**The reranker trade-off the new talks exposed.** Reading the misses: 3 of 5 had the gold chunk in the fused top 5
+(vector rank 1 for two of them) and the cross-encoder pushed it out. Across all 77: without reranker hit@1 57% /
+hit@5 95% / MRR 0.72; with it 78% / 92% / 0.84. Still clearly better at putting the right chunk *first*, but it now
+drops 4 questions from the top 5 and rescues 2. ms-marco was trained on web passages, not chatty commentary.
+- Prototyped (offline) fusing the reranker's order with the search order by RRF (reranker weight 1, 2, 3). Best
+  version: +1 top-5 question ("install REA"), 0 lost, dev hit@1 39 -> 41/52, but **holdout hit@1 21 -> 19/25 and
+  MRR 0.868 -> 0.823**. Noise on dev, worse on holdout: not shipped. Current reranker kept.
+
+**Whisper glossary fix (kept, though it didn't improve retrieval).** Whisper wrote "ChatGPT" as "chatgbt" (x14) and
+"Copilot" as "co -pilot" in the Pokemon talk. Added ChatGPT, Gemini, Copilot, Claude, Pokemon to `GLOSSARY`
+(Whisper's spelling hint) and re-transcribed only that talk from cached audio (70 s, no YouTube download; old
+transcript kept as `*.before-glossary.json`).
+- Spelling: "chatgbt" 14 -> 0, "ChatGPT" 0 -> 8, "Copilot" 0 -> 2; "chat gpt" (two words) 8 -> 11, so only a partial
+  fix for keyword matching. The new transcript also has more full stops.
+- Gold moments re-located in the new word timings: all 12 moved <= 0.6 s; two phrases respelled ("chatgbt is
+  currently adding..." -> "ChatGPT is...", and the invented starter name "Sprigpuff," -> "Sprig pup.").
+- Retrieval, Pokemon talk: hit@1 42% -> 33%, hit@5 67% -> 67%, MRR 0.52 -> 0.48, links 50% -> 25%: two questions
+  entered the top 5, two left, and "Pokeballs" still misses. Overall 78/92 -> 77/92. Reshuffles on 12 questions, not a trend.
+- Decision: keep it. It's the more accurate transcript (what the UI shows and Gemini reads), recorded as "correct data,
+  no measurable retrieval gain". The misspelling wasn't the main cause; the talk's style is.
+
+**End to end: blocked until the quota resets.** The 93-question `--llm` run got 87 x `429 RESOURCE_EXHAUSTED`
+("retry in 23h52m"): today's eval runs used the 500/day free quota. Stopped the retry loop rather than burn
+attempts. The 93-question end-to-end run (which also completes entry 18's pending numbers) waits for tomorrow.
+
+**Interview takeaway.** Two "obvious" fixes, measured: fusing reranker and search orders (rejected on holdout) and fixing
+the transcript spelling (kept for correctness, but it moved no metric). The bigger, more varied eval keeps showing
+that the first explanation isn't always the real cause.

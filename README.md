@@ -85,8 +85,11 @@ Results on 2 talks (29 answerable + 8 unanswerable, `gemini-3.5-flash-lite`):
 | Unanswerable refused | 12/12 | 12/12 | 12/12 | 12/12 |
 
 With multiple gold moments allowed where the talk justifies them (2 questions; see notes entry 18):
-retrieval hit@5 **100%**, MRR 0.91, sentence links 83% on time. End-to-end numbers for this change are
-pending: the run hit the Gemini free tier's 500 requests/day limit.
+retrieval hit@5 **100%**, MRR 0.91, sentence links 83% on time.
+
+**6 talks, 93 questions** (77 answerable + 16 unanswerable; two Whisper-only talks added): retrieval hit@1 77%,
+hit@5 92%, MRR 0.83. The informal "ChatGPT vs Gemini Pokemon" commentary is by far the hardest talk (hit@5 67%).
+End-to-end numbers for the 93-question set are pending: the run hit the Gemini free tier's 500 requests/day limit.
 
 Per talk (before multi-gold): Postgres 17/17 gold citations, AI engineering 12/12, ChatGPT image tutorial 11/12,
 Figma 12/12 (Whisper transcript) but only 7/12 links on time: mostly the 8 s lead-in plus answers that
@@ -129,4 +132,5 @@ Analysis in `docs/first-run-notes.md`.
 - [x] `source=auto`: Whisper where it was run (Figma), captions elsewhere
 - [x] Local web UI with embedded player; search-only fallback when the LLM is unavailable
 - [x] Two talks that YouTube blocked for captions ingested via Whisper (6 talks)
-- [ ] Next: gold questions for the two new talks; hosting (e.g. Hugging Face Spaces) with rate limiting and a read-only DB role
+- [x] Gold questions for the two new talks (93-question eval)
+- [ ] Next: 93-question end-to-end run (after the quota resets); hosting (e.g. Hugging Face Spaces) with rate limiting and a read-only DB role
