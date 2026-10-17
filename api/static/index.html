@@ -48,7 +48,7 @@
   .tag:hover, .tag.active { background: var(--accent); color: #fff; }
   .notice { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 10px 12px;
             margin-bottom: 14px; font-size: 14px; }
-  .cites { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .cites { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
   .cite { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 10px;
           padding: 8px 10px; }
   .cite .t { flex: 1; min-width: 0; }

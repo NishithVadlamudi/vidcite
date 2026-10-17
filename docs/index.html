@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vidcite demo</title>
+<meta name="description" content="Recorded demo of vidcite: answers about Creative Commons tech talks, cited to the second.">
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e4e3df;
+    --accent: #c2410c; --accent-soft: #fff1e8; --warn-bg: #fff8e1; --warn-text: #7a5b00;
+    --radius: 12px; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --panel: #1d1d1b; --text: #ecebe6; --muted: #a3a29b; --line: #2f2e2b;
+      --accent: #fb923c; --accent-soft: #2b1d14; --warn-bg: #2a2410; --warn-text: #e8cf7a;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { max-width: 1180px; margin: 0 auto; padding: 28px 16px 8px; }
+  header h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 20px;
+         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+           box-shadow: var(--shadow); padding: 18px; }
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg);
+                     border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--text); padding: 8px 12px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .6; cursor: progress; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .examples button { font-size: 13px; padding: 4px 10px; border-radius: 999px; color: var(--muted); }
+  .examples button:hover { color: var(--text); border-color: var(--muted); }
+  #result { margin-top: 18px; }
+  #result:empty { display: none; }
+  .answer { font-size: 17px; margin: 0 0 14px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 7px; margin: 0 2px;
+         border-radius: 6px; border: 1px solid var(--accent); color: var(--accent); background: var(--accent-soft);
+         vertical-align: 1px; }
+  .tag:hover, .tag.active { background: var(--accent); color: #fff; }
+  .notice { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 10px 12px;
+            margin-bottom: 14px; font-size: 14px; }
+  .cites { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+  .cite { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 10px;
+          padding: 8px 10px; }
+  .cite .t { flex: 1; min-width: 0; }
+  .cite .title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+  .cite .ts { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cite a { font-size: 13px; color: var(--muted); }
+  .meta { margin-top: 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .player { aspect-ratio: 16 / 9; width: 100%; border-radius: 10px; overflow: hidden; background: #000;
+            display: grid; place-items: center; color: #aaa; font-size: 14px; }
+  .player iframe { width: 100%; height: 100%; border: 0; }
+  .side { position: sticky; top: 16px; display: grid; gap: 20px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .library { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+  .library li { display: flex; justify-content: space-between; gap: 12px; }
+  .library span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  .error { color: #dc2626; }
+  .banner { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+  .banner div { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+  .banner a, footer a { color: var(--accent); }
+  .qs { display: grid; gap: 6px; }
+  .qs button { text-align: left; font-size: 14px; }
+  .qs button.active { border-color: var(--accent); color: var(--accent); }
+  .qs .group { font-size: 12px; color: var(--muted); margin: 8px 0 0; text-transform: uppercase; letter-spacing: .05em; }
+  footer { max-width: 1180px; margin: 0 auto; padding: 8px 16px 28px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>vidcite</h1>
+  <p>Ask a question about Creative Commons tech talks. Every claim links to the moment it's said.</p>
+</header>
+<div class="banner"><div><strong>Recorded demo.</strong> These are real answers vidcite produced during an evaluation run,
+  replayed here so the demo runs without a server. Pick a question; each citation jumps the player to the cited second.
+  For live questions, <a href="https://github.com/NishithVadlamudi/vidcite#setup">run it locally</a> · <a href="https://github.com/NishithVadlamudi/vidcite">source on GitHub</a>.</div></div>
+
+<main>
+  <section class="panel">
+    <h2>Pick a question</h2>
+    <div class="qs" id="questions"></div>
+    <div id="result" aria-live="polite"></div>
+  </section>
+
+  <aside class="side">
+    <div class="panel">
+      <div class="player" id="player">Click a citation to play that moment</div>
+    </div>
+    <div class="panel">
+      <h2>Library</h2>
+      <ul class="library" id="library"><li>Loading…</li></ul>
+    </div>
+  </aside>
+</main>
+
+<footer>Answers are generated only from the talks' transcripts; timestamps come from the database, never from the model.
+  Talks are used under their Creative Commons Attribution licences; credit belongs to the channels listed.
+  <a href="https://github.com/NishithVadlamudi/vidcite">vidcite on GitHub</a> · <a href="https://github.com/NishithVadlamudi/vidcite/blob/main/docs/first-run-notes.md">build and eval notes</a></footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (s) => {
+  s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+};
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+
+function play(c) {
+  const t = Math.floor(c.link_s);
+  const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(c.video_id)}?start=${t}&autoplay=1&rel=0`;
+  $("player").replaceChildren(el("iframe", { src, title: `${c.title} at ${fmt(t)}`,
+    allow: "autoplay; encrypted-media; picture-in-picture", allowFullscreen: true }));
+  document.querySelectorAll(".tag").forEach((b) => b.classList.toggle("active", b.dataset.n === String(c.n)));
+}
+
+// Build the answer from text nodes and buttons, never innerHTML, so model output can't inject markup.
+function answerNode(text, byN) {
+  const p = el("p", { className: "answer" });
+  let last = 0;
+  for (const m of text.matchAll(/\[S(\d+)\]/g)) {
+    p.append(text.slice(last, m.index));
+    const c = byN[m[1]];
+    if (c) {
+      const b = el("button", { className: "tag", type: "button", textContent: `S${m[1]}`,
+                               title: `${c.title} @ ${fmt(c.link_s)}`, onclick: () => play(c) });
+      b.dataset.n = m[1];
+      p.append(b);
+    } else {
+      p.append(m[0]);
+    }
+    last = m.index + m[0].length;
+  }
+  p.append(text.slice(last));
+  return p;
+}
+
+function render(r) {
+  const byN = Object.fromEntries(r.citations.map((c) => [String(c.n), c]));
+  const out = [];
+  if (r.search_only) out.push(el("div", { className: "notice", textContent: r.answer }));
+  else out.push(answerNode(r.answer, byN));
+  if (r.citations.length) {
+    const seen = new Set();
+    const list = el("ul", { className: "cites" });
+    for (const c of r.citations) {
+      const key = `${c.video_id}@${Math.floor(c.link_s)}`;
+      if (seen.has(key)) continue;  // overlapping chunks can cite the same moment
+      seen.add(key);
+      const tags = r.citations.filter((x) => `${x.video_id}@${Math.floor(x.link_s)}` === key).map((x) => `S${x.n}`).join(" ");
+      list.append(el("li", { className: "cite" },
+        el("button", { type: "button", textContent: "▶", title: "Play this moment", onclick: () => play(c) }),
+        el("span", { className: "t" }, el("span", { className: "title", textContent: `${tags} · ${c.title}` }),
+                                       el("span", { className: "ts", textContent: fmt(c.link_s) })),
+        el("a", { href: `https://youtu.be/${encodeURIComponent(c.video_id)}?t=${Math.floor(c.link_s)}`, target: "_blank",
+                  rel: "noopener", textContent: "YouTube ↗" })));
+    }
+    out.push(list);
+  }
+  out.push(el("div", { className: "meta", textContent:
+    `recorded answer · ${r.found ? "answered" : "refused: not in the talks"} · top score ${r.top_score ?? "–"}` }));
+  $("result").replaceChildren(...out);
+  if (r.citations.length) play(r.citations[0]);
+}
+
+
+const GROUPS = [["PostgreSQL internals", "P8rrhZTPEAQ"], ["AI engineering", "A2QrRXCypm4"], ["ChatGPT image tutorial", "EqEdnI3B23g"], ["Figma tutorial", "FTFaQWZBqQ8"], ["Not in the talks", null]];
+fetch("demo-data.json").then((r) => r.json()).then((data) => {
+  const videoOf = (a) => a.response.citations[0]?.video_id ?? null;
+  const buttons = [];
+  for (const [label, vid] of GROUPS) {
+    const items = data.answers.filter((a) => videoOf(a) === vid);
+    if (!items.length) continue;
+    $("questions").append(el("p", { className: "group", textContent: label }));
+    for (const a of items) {
+      const b = el("button", { type: "button", textContent: a.question, onclick: () => {
+        buttons.forEach((x) => x.classList.toggle("active", x === b));
+        render(a.response);
+      } });
+      buttons.push(b); $("questions").append(b);
+    }
+  }
+  $("library").replaceChildren(...data.library.map((v) => el("li", {},
+    el("span", { textContent: v.channel ? `${v.title} · ${v.channel}` : v.title }),
+    el("span", { textContent: v.duration_s ? fmt(v.duration_s) : "" }))));
+}).catch(() => $("questions").replaceChildren(el("p", { className: "error", textContent: "Couldn't load the recorded answers." })));
+</script>
+</body>
+</html>

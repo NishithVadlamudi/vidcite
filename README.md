@@ -5,6 +5,8 @@ clickable timestamps that jump the video to the exact moment.
 
 ![vidcite web UI: an answer about why PostgreSQL is object-relational, with citation buttons S1 and S2 and an embedded player paused at the cited moment](docs/screenshot.jpg)
 
+**[Try the recorded demo →](https://nishithvadlamudi.github.io/vidcite/)** (real answers from an eval run, replayed without a server)
+
 *The local web UI (`uvicorn api.main:app`). The answer shown is a real response recorded during an eval run
 (1.6 s), replayed through the page's own renderer; each `[S1]` jumps the embedded player to the cited second.*
 
@@ -120,9 +122,17 @@ start mid-sentence (tuned on lecture talks; a tutorial-specific value isn't supp
 
 Analysis in `docs/first-run-notes.md`.
 
+## Recorded demo (GitHub Pages)
+
+`docs/` is a static demo served by GitHub Pages: `python scripts/build_demo.py` copies 12 real answers
+(with citations) from recorded eval runs into `docs/demo-data.json` and generates `docs/index.html` from the
+live UI, so the two share styles and rendering code. No server, no API keys, no cost.
+
 ## Deploy (Hugging Face Spaces)
 
-The `Dockerfile` serves the web UI + API only (CPU torch, both models baked in, port 7860); ingestion
+Note: Hugging Face now requires a paid plan for Docker Spaces (Static Spaces stay free), so this isn't
+deployed; the recorded demo above is the free option. The `Dockerfile` also runs unchanged on other container
+hosts (it was tested locally). The `Dockerfile` serves the web UI + API only (CPU torch, both models baked in, port 7860); ingestion
 stays local. Public-demo limits are on in the image: 10 questions per visitor per hour and 150 generated
 answers per day, after which `/ask` answers in search-only mode (`api/limits.py`).
 

@@ -1,0 +1,336 @@
+{
+ "answers": [
+  {
+   "question": "Why is Postgres described as object-relational rather than just relational?",
+   "run": "20261016-171945",
+   "response": {
+    "answer": "PostgreSQL is described as object-relational because it combines traditional relational database features, such as tables, rows, and foreign keys, with object-oriented concepts [S1][S2]. These object-oriented concepts include custom data types, functions, and inheritance [S1][S2].",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "P8rrhZTPEAQ",
+      "title": "99% of Developers Don't Get PostgreSQL",
+      "start_s": 41.92,
+      "end_s": 93.68,
+      "link_s": 73.14
+     },
+     {
+      "n": 2,
+      "video_id": "P8rrhZTPEAQ",
+      "title": "99% of Developers Don't Get PostgreSQL",
+      "start_s": 84.16,
+      "end_s": 129.68,
+      "link_s": 99.73
+     }
+    ],
+    "found": true,
+    "top_score": 0.835,
+    "latency_ms": 1611,
+    "search_only": false
+   }
+  },
+  {
+   "question": "What is TOAST in PostgreSQL?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "TOAST stands for the oversized attribute storage technique, which is an automatic mechanism used to handle large data values within a row that exceed the standard 8 kilobyte page size [S1]. PostgreSQL requires entire rows to fit within a single page, and when tuples grow too large, it automatically stores them out of line using TOAST [S1]. TOAST addresses this challenge by employing compression or by moving the large field value to a separate, automatically created TOAST table [S1][S3][S4].",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "P8rrhZTPEAQ",
+      "title": "99% of Developers Don't Get PostgreSQL",
+      "start_s": 209.84,
+      "end_s": 256.16,
+      "link_s": 201.84
+     },
+     {
+      "n": 3,
+      "video_id": "P8rrhZTPEAQ",
+      "title": "99% of Developers Don't Get PostgreSQL",
+      "start_s": 254.72,
+      "end_s": 309.44,
+      "link_s": 290.86
+     },
+     {
+      "n": 4,
+      "video_id": "P8rrhZTPEAQ",
+      "title": "99% of Developers Don't Get PostgreSQL",
+      "start_s": 299.44,
+      "end_s": 344.8,
+      "link_s": 291.44
+     }
+    ],
+    "found": true,
+    "top_score": 0.869,
+    "latency_ms": 4723,
+    "search_only": false
+   }
+  },
+  {
+   "question": "What is an LSN?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "An LSN stands for a log sequence number, which marks the specific point in the write-ahead log up to which all data changes have been flushed to disk [S1][S2]. This important information is contained within the special checkpoint record written to the write-ahead log after flushing dirty pages [S2].",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "P8rrhZTPEAQ",
+      "title": "99% of Developers Don't Get PostgreSQL",
+      "start_s": 707.84,
+      "end_s": 756.96,
+      "link_s": 699.84
+     },
+     {
+      "n": 2,
+      "video_id": "P8rrhZTPEAQ",
+      "title": "99% of Developers Don't Get PostgreSQL",
+      "start_s": 667.84,
+      "end_s": 718.24,
+      "link_s": 699.27
+     }
+    ],
+    "found": true,
+    "top_score": 0.516,
+    "latency_ms": 3675,
+    "search_only": false
+   }
+  },
+  {
+   "question": "What is the difference between HNSW and IVFFlat indexes?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "HNSW builds a graph of vectors to explore nearby nodes, whereas IVFFlat breaks nodes up into clusters and explores surrounding clusters. Additionally, HNSW uses more memory while being more accurate and faster on queries, whereas IVFFlat uses less memory, is less accurate, and is faster to build. [S1]",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "A2QrRXCypm4",
+      "title": "Give me 8 minutes and I will make you an AI Engineer",
+      "start_s": 220.0,
+      "end_s": 265.52,
+      "link_s": 250.57
+     }
+    ],
+    "found": true,
+    "top_score": 0.732,
+    "latency_ms": 4402,
+    "search_only": false
+   }
+  },
+  {
+   "question": "How do you define a tool for an LLM?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "You define a tool by providing a name, a description, and input parameters or an input schema [S1][S4]. This usually looks like defining a function with these attributes [S1].",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "A2QrRXCypm4",
+      "title": "Give me 8 minutes and I will make you an AI Engineer",
+      "start_s": 130.68,
+      "end_s": 180.64,
+      "link_s": 160.8
+     },
+     {
+      "n": 4,
+      "video_id": "A2QrRXCypm4",
+      "title": "Give me 8 minutes and I will make you an AI Engineer",
+      "start_s": 44.68,
+      "end_s": 91.16,
+      "link_s": 58.71
+     }
+    ],
+    "found": true,
+    "top_score": 0.745,
+    "latency_ms": 4550,
+    "search_only": false
+   }
+  },
+  {
+   "question": "What is reciprocal rank fusion?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "Reciprocal rank fusion, or RRF, is a function people usually use to combine rankings from several different search methods to get a better result [S1].",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "A2QrRXCypm4",
+      "title": "Give me 8 minutes and I will make you an AI Engineer",
+      "start_s": 264.32,
+      "end_s": 312.36,
+      "link_s": 265.8
+     }
+    ],
+    "found": true,
+    "top_score": 0.623,
+    "latency_ms": 5377,
+    "search_only": false
+   }
+  },
+  {
+   "question": "Why is ChatGPT better than other AI tools at putting text in images?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "ChatGPT is better at putting text in images because it uses the same model that writes the text, allowing it to actually know how to spell and where to put the words. [S2] Other AI tools constantly mess up text with misspelled words, floating letters, and total gibberish, whereas ChatGPT correctly spells words in images. [S1][S2]",
+    "citations": [
+     {
+      "n": 2,
+      "video_id": "EqEdnI3B23g",
+      "title": "ChatGPT Image Generator Tutorial (Exact Prompts I Use)",
+      "start_s": 209.52,
+      "end_s": 265.28,
+      "link_s": 230.46
+     },
+     {
+      "n": 1,
+      "video_id": "EqEdnI3B23g",
+      "title": "ChatGPT Image Generator Tutorial (Exact Prompts I Use)",
+      "start_s": 724.16,
+      "end_s": 770.56,
+      "link_s": 727.68
+     }
+    ],
+    "found": true,
+    "top_score": 0.835,
+    "latency_ms": 1649,
+    "search_only": false
+   }
+  },
+  {
+   "question": "How do I get a transparent background for a logo?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "To get a transparent background for a logo, you just need to add \"transparent PNG background\" to your prompt [S1][S2].",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "EqEdnI3B23g",
+      "title": "ChatGPT Image Generator Tutorial (Exact Prompts I Use)",
+      "start_s": 383.92,
+      "end_s": 432.64,
+      "link_s": 402.18
+     },
+     {
+      "n": 2,
+      "video_id": "EqEdnI3B23g",
+      "title": "ChatGPT Image Generator Tutorial (Exact Prompts I Use)",
+      "start_s": 427.36,
+      "end_s": 473.44,
+      "link_s": 433.34
+     }
+    ],
+    "found": true,
+    "top_score": 0.708,
+    "latency_ms": 3770,
+    "search_only": false
+   }
+  },
+  {
+   "question": "How do I draw a perfect circle in Figma?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "To draw a circle in Figma, you can use the ellipse tool from the shapes menu or press the letter O on your keyboard [S2]. By default, this will draw a circle with any aspect ratio [S1][S2]. To make it a perfect circle, you simply need to hold down the shift key on your keyboard while dragging [S1][S2].",
+    "citations": [
+     {
+      "n": 2,
+      "video_id": "FTFaQWZBqQ8",
+      "title": "Figma UI Design Tutorial: Get Started in Just 24 Minutes!",
+      "start_s": 585.44,
+      "end_s": 639.54,
+      "link_s": 616.08
+     },
+     {
+      "n": 1,
+      "video_id": "FTFaQWZBqQ8",
+      "title": "Figma UI Design Tutorial: Get Started in Just 24 Minutes!",
+      "start_s": 624.76,
+      "end_s": 670.9,
+      "link_s": 616.76
+     }
+    ],
+    "found": true,
+    "top_score": 0.745,
+    "latency_ms": 3707,
+    "search_only": false
+   }
+  },
+  {
+   "question": "How do I make an editable copy of someone else's Figma file?",
+   "run": "20261016-171945",
+   "response": {
+    "answer": "To make an editable copy of another person's file in Figma, you first open the file in a browser tab by clicking the button to copy it to Figma [S1]. Because the file will initially open in view-only mode, you click on the file name and select the option to duplicate it to your drafts [S1]. Being signed into Figma allows this action to create a personal, editable copy in your own account [S1][S2].",
+    "citations": [
+     {
+      "n": 1,
+      "video_id": "FTFaQWZBqQ8",
+      "title": "Figma UI Design Tutorial: Get Started in Just 24 Minutes!",
+      "start_s": 209.74,
+      "end_s": 264.64,
+      "link_s": 207.63
+     },
+     {
+      "n": 2,
+      "video_id": "FTFaQWZBqQ8",
+      "title": "Figma UI Design Tutorial: Get Started in Just 24 Minutes!",
+      "start_s": 253.9,
+      "end_s": 309.7,
+      "link_s": 245.9
+     }
+    ],
+    "found": true,
+    "top_score": 0.841,
+    "latency_ms": 1672,
+    "search_only": false
+   }
+  },
+  {
+   "question": "How does MySQL InnoDB implement row-level locking?",
+   "run": "20261016-130036",
+   "response": {
+    "answer": "I couldn't find this in the video library.",
+    "citations": [],
+    "found": false,
+    "top_score": 0.705,
+    "latency_ms": 2665,
+    "search_only": false
+   }
+  },
+  {
+   "question": "What is the capital of France?",
+   "run": "20261016-171945",
+   "response": {
+    "answer": "I couldn't find this in the video library.",
+    "citations": [],
+    "found": false,
+    "top_score": 0.418,
+    "latency_ms": 584,
+    "search_only": false
+   }
+  }
+ ],
+ "library": [
+  {
+   "id": "P8rrhZTPEAQ",
+   "title": "99% of Developers Don't Get PostgreSQL",
+   "channel": "The Coding Gopher",
+   "duration_s": 759
+  },
+  {
+   "id": "EqEdnI3B23g",
+   "title": "ChatGPT Image Generator Tutorial (Exact Prompts I Use)",
+   "channel": "Jake Dawson",
+   "duration_s": 828
+  },
+  {
+   "id": "FTFaQWZBqQ8",
+   "title": "Figma UI Design Tutorial: Get Started in Just 24 Minutes!",
+   "channel": "AJ&Smart",
+   "duration_s": 1463
+  },
+  {
+   "id": "A2QrRXCypm4",
+   "title": "Give me 8 minutes and I will make you an AI Engineer",
+   "channel": "Tom Delalande",
+   "duration_s": 461
+  }
+ ]
+}

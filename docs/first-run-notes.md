@@ -856,3 +856,28 @@ search-only because the quota was still exhausted). Per-visitor limit: questions
 429 "try again in 59 min", and the page shows it as a notice, not an error. Not covered: Hugging Face runs
 linux/amd64, while this build was arm64. Platform-specific failures are rare for pure-Python wheels plus CPU torch,
 but the Space's own build log is the final check.
+
+## 22. Hosting reality check, and a free recorded demo on GitHub Pages
+
+**Hugging Face changed its free tier.** Creating the Space showed Docker and Gradio marked *Paid*: their docs now say
+"Gradio and Docker Spaces run on compute and require a paid plan to create", while Static Spaces stay free. My earlier
+"it's free" came from older knowledge; the user caught it from the live page.
+
+**Options researched** (sources in the session): Render and Koyeb free tiers are 512 MB (and need a card); Cloud Run's
+always-free tier would cover demo traffic, with the image's Artifact Registry storage (0.62 GB compressed vs 0.5 GB
+free) the only cost (~$0.01-0.02/month) and a card needed; Modal ($30 credit), AWS Lambda and Oracle's free VM all need
+a card. An experiment showed the two models run without PyTorch on ONNX Runtime in ~420 MB with **identical outputs**
+(cosine 1.000000, identical reranker scores), which would make a sub-0.5 GB image and a truly $0 Cloud Run deploy
+possible. A no-card live option exists (browser-side models + a Supabase Edge Function) but is a large rewrite.
+
+**Decision (for the portfolio): a recorded demo on GitHub Pages, linked from the portfolio site.** The user's portfolio
+is a plain-HTML GitHub Pages site whose project cards use a before/after format and had no AI/RAG project.
+- `scripts/build_demo.py` copies 12 real answers (10 answered with citations, 2 refused, including the near-topic MySQL
+  question) from recorded eval runs into `docs/demo-data.json`, recording which run each came from, and generates
+  `docs/index.html` from the live UI so both share styles and rendering code. A banner says the answers are recorded.
+  Latency is left out of the demo because some recorded calls include Gemini retries; true values stay in the data.
+- Only the 4 talks with recorded end-to-end answers appear (the two newest talks never got an end-to-end run because of the quota).
+- **Bug found while testing:** on a phone-width screen, citation rows with long talk titles overflowed the page (572 px
+  in a 373 px window): the citation list is a CSS grid whose column grew to fit the un-wrapped title. One rule
+  (`grid-template-columns: minmax(0, 1fr)`) fixed it in the live UI too; the earlier phone check had missed it because
+  that answer had no citations.
