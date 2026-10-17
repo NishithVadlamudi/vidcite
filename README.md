@@ -3,6 +3,11 @@
 Ask a question about a library of long technical talks; get a short answer with
 clickable timestamps that jump the video to the exact moment.
 
+![vidcite web UI: an answer about why PostgreSQL is object-relational, with citation buttons S1 and S2 and an embedded player paused at the cited moment](docs/screenshot.jpg)
+
+*The local web UI (`uvicorn api.main:app`). The answer shown is a real response recorded during an eval run
+(1.6 s), replayed through the page's own renderer; each `[S1]` jumps the embedded player to the cited second.*
+
 ## Setup
 
 1. Install Python 3.11+ and ffmpeg (`brew install ffmpeg`).
