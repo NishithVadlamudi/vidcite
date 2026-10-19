@@ -1,65 +1,89 @@
-# Video Q&A with timestamp citations
+# vidcite
 
-Ask a question about a library of long technical talks; get a short answer with
-clickable timestamps that jump the video to the exact moment.
+**Ask a question about long technical talks. Get a short answer whose citations jump the video to the exact second.**
 
-![Animated walkthrough of the vidcite demo: an answer with citation buttons, the embedded player jumping to each cited moment, and a refusal for a question the talks don't cover](docs/demo.gif)
+[![tests](https://github.com/NishithVadlamudi/vidcite/actions/workflows/tests.yml/badge.svg)](https://github.com/NishithVadlamudi/vidcite/actions/workflows/tests.yml)
+[![license](https://img.shields.io/github/license/NishithVadlamudi/vidcite)](LICENSE)
 
-**[Try the recorded demo →](https://nishithvadlamudi.github.io/vidcite/)** (real answers from an eval run, replayed without a server)
+![Animated walkthrough of vidcite: an answer with citation buttons, the embedded player jumping to each cited moment, a refusal for a question the talks don't cover, and the light theme](docs/demo.gif)
 
-*Walkthrough made from screenshots of the demo page; the answers are real responses recorded during an eval run.*
+**[Try the demo →](https://nishithvadlamudi.github.io/vidcite/)** · [How it works](#how-it-works) · [Results](#results) · [Decisions and what I measured](#decisions-and-what-i-measured) · [Run it yourself](#run-it-yourself)
 
-## Setup
+*The demo replays real answers recorded during an eval run, so it needs no server or API key.*
 
-1. Install Python 3.11+ and ffmpeg (`brew install ffmpeg`).
-2. `python -m venv .venv && source .venv/bin/activate`
-3. `pip install -r requirements.txt`
-4. In Supabase, open the SQL editor and run `db/schema.sql`.
-5. Copy `.env.example` to `.env` and paste your Supabase connection string into `DATABASE_URL`.
-6. Add your `GEMINI_API_KEY` to `.env` (free key from Google AI Studio).
-7. `pytest` (all 30 tests should pass).
+## Results
 
-## Ingest videos
+Measured on a hand-labelled eval of 4 talks: 53 answerable questions with the second the answer is spoken, and
+12 questions the talks don't cover, several of them deliberately near-topic.
 
-Find talks with YouTube's search filter: Filters > Features > Creative Commons.
-Non-Creative-Commons videos are refused automatically.
+| | Baseline | Now |
+|---|---|---|
+| Right passage ranked first (hit@1) | 64% | **85%** |
+| Answers that cite the right moment | 50 / 53 | **52 / 53** |
+| Citation links that land on time | 37% ¹ | **87%** |
+| Off-topic questions refused instead of guessed | 12 / 12 | **12 / 12** |
 
-```bash
-# Fast path: YouTube captions, no transcription (minutes for a whole library)
-python -m ingest.cli VIDEO_ID_1 VIDEO_ID_2 --source youtube
+¹ Before sentence-level links, on the first 2-talk eval. Baseline hit@1 is hybrid search before reranking;
+plain vector search scored 59% on the 2-talk set. Full tables are in [Evaluate](#evaluate).
 
-# Quality path: Whisper on the Mac GPU via mlx-whisper (slower, cached)
-python -m ingest.cli VIDEO_ID_1 --source whisper
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph Ingest["Ingest (once per talk)"]
+        A[YouTube talk<br/>CC-licensed only] --> B[Captions, or Whisper<br/>on the Mac GPU]
+        B --> C[Timestamped chunks]
+        C --> D[(Postgres + pgvector<br/>vectors + full-text)]
+    end
+    subgraph Ask["Ask (per question)"]
+        Q[Question] --> V[Vector search]
+        Q --> K[Keyword search]
+        V --> F[Rank fusion]
+        K --> F
+        F --> R[Cross-encoder rerank<br/>best 3-sentence window]
+        R --> G{Confident<br/>match?}
+        G -- no --> N[Refuse]
+        G -- yes --> L[Gemini answers<br/>citing S1, S2]
+        L --> T[Each citation linked to the<br/>sentence's second, from the DB]
+    end
+    D --> V
+    D --> K
 ```
 
-Each run saves chunks to `data/chunks/<video_id>.<source>.json`, embeds them on the
-Mac GPU and stores them in Supabase. Both sources are kept side by side so the eval
-can compare them. Add `--no-store` to stop after chunking (no database needed).
+- **Timestamps never come from the LLM.** The model only cites `[S1]`, `[S2]`; the second each tag jumps to is
+  looked up from the stored transcript, at the sentence that best matches the cited claim.
+- **Two retrievers, fused.** Vectors find paraphrases; Postgres full-text finds rare terms like "LSN" or
+  "postmaster" that embeddings miss. Reciprocal rank fusion combines them, and a small cross-encoder reorders the top 10.
+- **It says when it doesn't know.** A confidence gate and a NOT_FOUND rule in the prompt refuse off-topic
+  questions; if the LLM is down, the app falls back to search results with timestamp links.
+- **Stack:** Python, FastAPI, Supabase Postgres (pgvector HNSW + full-text), bge-small embeddings,
+  MiniLM cross-encoder, Gemini 3.5 Flash-Lite, Whisper (mlx-whisper), a dependency-free HTML front end.
 
-## Ask questions
+## Decisions and what I measured
 
-```bash
-# Web UI + API: open http://localhost:8000 (UI) or http://localhost:8000/docs (API)
-uvicorn api.main:app --reload
+Every change was checked against the eval, tuned on a dev split and reported on a holdout. The full log, with
+dead ends, is in [`docs/first-run-notes.md`](docs/first-run-notes.md).
 
-# Or from the terminal
-python -m api.ask_cli "How does Raft elect a leader?"
-```
-
-![vidcite local web UI: an answer about why PostgreSQL is object-relational, with citation buttons S1 and S2 and an embedded player paused at the cited moment](docs/screenshot.jpg)
-
-*The local web UI. The answer shown is a real response recorded during an eval run (1.6 s), replayed through
-the page's own renderer.*
-
-The web UI (`api/static/index.html`, no build step or dependencies) shows the answer with its `[S1]` tags
-as buttons that jump an embedded YouTube player to the cited second, the matching moments, and the talks
-in the library. If the LLM is unavailable (e.g. the Gemini free-tier quota), `/ask` falls back to
-**search only**: the best matching moments with timestamp links and no generated answer, still behind the
-confidence gate.
-
-Each answer cites its sources as `[S1]`, `[S2]`; the CLI prints a YouTube link that
-starts at the cited second. Timestamps come from the database, never from the LLM.
-If the best match is too weak, or the model finds no answer, it says so instead of guessing.
+- **Hybrid search fixed rare terms.** Vector search alone missed questions about acronyms and internal names.
+  Adding Postgres full-text search with rank fusion took hit@1 from 59% to 76% and hit@5 to 100% on the first set.
+- **Linking to the sentence, not the chunk.** Links first pointed at the start of a ~230-word chunk, often a
+  minute early: 37% on time. Estimating each sentence's time from its word offset (no schema change) plus an 8 s
+  lead-in tuned on dev took that to 93%.
+- **A result that was really a bug.** The first reranker run matched the baseline to the percentage point. Instead
+  of concluding "reranking doesn't help", I checked the scores: every one was NaN, and sorting by NaN keeps the
+  input order. The cause was a matrix multiply on memory-mapped weights; after the fix and a guard against
+  non-finite scores, hit@1 went from 64% to 79%.
+- **A general fix for one regression.** One question got worse with the reranker: its answer sat mid-way through a
+  mixed-topic chunk and was diluted. Scoring each chunk by its best 3-sentence window fixed it and lifted the
+  whole eval to 85% hit@1, with no losses.
+- **Shipping negative results.** Merging adjacent chunks looked like a win (hit@1 76% → 93%) but the number was
+  inflated by longer passages, and end to end it made links worse (93% → 83% on time), so it stays off. Whisper
+  tied with free captions, so captions stay the default; Whisper is used only where captions lack punctuation or YouTube blocks them.
+- **The eval overturned a tuning choice.** Dev data said to raise the similarity cutoff to 0.61. The holdout
+  showed no gain, and the end-to-end run showed the prompt's NOT_FOUND rule, not the cutoff, was doing the refusing.
+  The cutoff stayed at 0.55.
+- **The GPU was 8× slower for one query.** A short query took 111 ms on the Mac GPU and 14 ms on CPU, because
+  transfer and warm-up dominate. Queries moved to CPU (vectors verified identical); the GPU stays for batch ingest.
 
 ## Evaluate
 
@@ -125,6 +149,57 @@ start mid-sentence (tuned on lecture talks; a tutorial-specific value isn't supp
   captions on this set, so captions stay the default (Whisper is for videos without captions).
 
 Analysis in `docs/first-run-notes.md`.
+
+## Run it yourself
+
+1. Install Python 3.11+ and ffmpeg (`brew install ffmpeg`).
+2. `python -m venv .venv && source .venv/bin/activate`
+3. `pip install -r requirements.txt`
+4. In Supabase, open the SQL editor and run `db/schema.sql`.
+5. Copy `.env.example` to `.env` and paste your Supabase connection string into `DATABASE_URL`.
+6. Add your `GEMINI_API_KEY` to `.env` (free key from Google AI Studio).
+7. `pytest` (all 73 tests should pass; no database or API key needed).
+
+### Ingest videos
+
+Find talks with YouTube's search filter: Filters > Features > Creative Commons.
+Non-Creative-Commons videos are refused automatically.
+
+```bash
+# Fast path: YouTube captions, no transcription (minutes for a whole library)
+python -m ingest.cli VIDEO_ID_1 VIDEO_ID_2 --source youtube
+
+# Quality path: Whisper on the Mac GPU via mlx-whisper (slower, cached)
+python -m ingest.cli VIDEO_ID_1 --source whisper
+```
+
+Each run saves chunks to `data/chunks/<video_id>.<source>.json`, embeds them on the
+Mac GPU and stores them in Supabase. Both sources are kept side by side so the eval
+can compare them. Add `--no-store` to stop after chunking (no database needed).
+
+### Ask questions
+
+```bash
+# Web UI + API: open http://localhost:8000 (UI) or http://localhost:8000/docs (API)
+uvicorn api.main:app --reload
+
+# Or from the terminal
+python -m api.ask_cli "How does Raft elect a leader?"
+```
+
+![vidcite local web UI: an answer about why PostgreSQL is object-relational, with citation buttons S1 and S2 and an embedded player paused at the cited moment](docs/screenshot.jpg)
+
+*The local web UI answering a live question (9.5 s, including a cold start of the models).*
+
+The web UI (`api/static/index.html`, no build step or dependencies) shows the answer with its `[S1]` tags
+as buttons that jump an embedded YouTube player to the cited second, the matching moments, and the talks
+in the library. If the LLM is unavailable (e.g. the Gemini free-tier quota), `/ask` falls back to
+**search only**: the best matching moments with timestamp links and no generated answer, still behind the
+confidence gate.
+
+Each answer cites its sources as `[S1]`, `[S2]`; the CLI prints a YouTube link that
+starts at the cited second. Timestamps come from the database, never from the LLM.
+If the best match is too weak, or the model finds no answer, it says so instead of guessing.
 
 ## Recorded demo (GitHub Pages)
 

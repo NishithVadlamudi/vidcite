@@ -1,0 +1,17 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The unit tests fake the database, models and LLM, so they need only numpy and pytest.
+      - run: pip install numpy==2.5.4 pytest
+      - run: python -m pytest -q
