@@ -928,3 +928,13 @@ fills the question box word by word and hands the text to the same `parseCommand
 recognition's final result uses; this is stated in the README. First take used the HNSW question, but both its
 citations resolved to the same second (4:16), so "play the second one" showed no jump; re-recorded with the Postgres
 question (1:13 and 1:39). The models were warmed with a question the confidence gate refuses, so no Gemini call.
+
+**Redesign and launch video (2026-10-19).** The UI became a reading column (28 px question, 17 px answer, a Sources list
+with YouTube thumbnails and timestamp badges) beside a sticky media column (player, now-playing bar, timeline), so no two
+cards have to match heights. Re-recording the README media caught one layout bug: the media column is a grid whose
+implicit column sized to its widest content (519 px in a 486 px track), pushing "Open on YouTube" off-screen at 1280 px;
+`grid-template-columns: minmax(0, 1fr)` fixed it. `docs/vidcite-launch.mp4` is a 20 s launch video made by following the
+/brag-slim skill (read from latent-spaces/brag, not installed): the real page driven by a recorded answer and real frames
+of the cited talk, rendered frame by frame from a time-driven composition in headless Chrome, with an original soundtrack
+synthesized in numpy (120 BPM, A minor, effects tuned to the key). The mix was rebalanced by measurement after the first
+pass put 81% of its energy below 120 Hz. Working files stay in the ignored `brag-output/`.
