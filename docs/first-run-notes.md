@@ -901,3 +901,12 @@ to the player's height leaving a 175 px blank band, and the demo note wrapped to
 A light theme follows the system setting until the visitor picks one; the lime is darkened on white so timestamps stay
 readable. The README GIF (5 frames, 339 KB) and screenshot were re-taken with headless Chrome at 1280×800; the
 screenshot is a live answer from the local server (9.5 s).
+
+**Voice questions (2026-10-19).** The live UI has a mic button (shown only where the browser supports speech
+recognition): the question is transcribed into the box as you speak and sent when you stop, the answer is read aloud
+without its `[S1]` tags, and the player waits paused at the cited second until the reading ends, so the two don't
+talk over each other. Any click interrupts the reading (a token check stops a cancelled reading from starting the
+clip). No new dependencies: the Web Speech API on both sides. The recorded demo has no server, so it has no mic.
+Two layout bugs found while checking: the mic's `padding: 0` lost to the later `.ghost` rule (the icon rendered 4 px
+wide), and the phone top bar overflowed because the form couldn't shrink below its input's natural width (`min-width: 0`).
+Not yet measured: recognition accuracy on tech terms like "HNSW" or "pgvector".

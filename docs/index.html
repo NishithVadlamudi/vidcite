@@ -54,13 +54,16 @@
   .lib small { color: var(--faint); font-size: var(--fs-small); }
   .credit { margin-top: auto; padding: 18px 10px 0; color: var(--faint); font-size: var(--fs-small); }
   .top { display: flex; align-items: center; gap: var(--gap); border-bottom: 1px solid var(--border); padding: 0 0 0 29px; }
-  .top form { flex: 1; display: flex; gap: 10px; max-width: 760px; }
+  .top form { flex: 1; min-width: 0; display: flex; gap: 10px; max-width: 760px; }
   .top input { flex: 1; min-width: 0; height: 36px; border: 0; border-radius: 999px; background: var(--raised); color: var(--text); padding: 0 16px; font: inherit; }
   .top input::placeholder { color: var(--faint); }
   .pill { height: 36px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--text); color: var(--on-text); font-weight: 500; transition: transform .1s ease-out; }
   .pill:active { transform: scale(.97); }
   .pill:disabled { opacity: .6; cursor: progress; }
   .top .theme { margin-left: auto; }
+  .top .mic { width: 36px; padding: 0; justify-content: center; }
+  .top .mic[hidden] { display: none; }
+  .top .mic[aria-pressed="true"] { background: var(--text); color: var(--on-text); }
   .top .ext { align-self: stretch; display: flex; align-items: center; padding: 0 29px; border-left: 1px solid var(--border); color: var(--nav); text-decoration: none; white-space: nowrap; }
   .top .ext:hover { color: var(--text); }
   .top .menu { display: none; }
@@ -175,9 +178,9 @@ const fmt = (s) => {
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const talks = {};  // video_id -> {title, channel, duration_s}, filled by renderLibrary
 
-function play(c) {
+function play(c, autoplay = true) {
   const t = Math.floor(c.link_s);
-  const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(c.video_id)}?start=${t}&autoplay=1&rel=0`;
+  const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(c.video_id)}?start=${t}&autoplay=${autoplay ? 1 : 0}&rel=0`;
   $("player").replaceChildren(el("iframe", { src, title: `${c.title} at ${fmt(t)}`,
     allow: "autoplay; encrypted-media; picture-in-picture", allowFullscreen: true }));
   document.querySelectorAll("[data-n]").forEach((b) => b.classList.toggle("active", b.dataset.n === String(c.n)));
@@ -251,7 +254,7 @@ function metaText(r) {
   return parts.join(" · ");
 }
 
-function render(r, question) {
+function render(r, question, autoplay = true) {
   const byN = Object.fromEntries(r.citations.map((c) => [String(c.n), c]));
   if (question) $("title").textContent = question;
   $("meta").textContent = metaText(r);
@@ -262,7 +265,7 @@ function render(r, question) {
   $("result").replaceChildren(...out);
   $("where").replaceChildren(...(r.citations.length ? whereNode(r.citations)
     : [el("p", { className: "quiet", textContent: "No cited moments for this answer." })]));
-  if (r.citations.length) play(r.citations[0]);
+  if (r.citations.length) play(r.citations[0], autoplay);
   else {  // don't leave an unrelated clip up
     $("player").replaceChildren("No moment to play: this answer has no citations");
     $("stamp").textContent = "—"; $("stamp").classList.remove("on"); $("acts").replaceChildren();

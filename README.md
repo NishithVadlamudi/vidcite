@@ -197,6 +197,10 @@ in the library. If the LLM is unavailable (e.g. the Gemini free-tier quota), `/a
 **search only**: the best matching moments with timestamp links and no generated answer, still behind the
 confidence gate.
 
+**Voice:** in Chrome, Edge or Safari, the mic button next to Ask takes a spoken question, reads the answer
+aloud, then plays the first cited moment. It uses the browser's own speech recognition and synthesis, so
+nothing is installed; any click stops the reading. (Chrome sends the audio to Google for recognition.)
+
 Each answer cites its sources as `[S1]`, `[S2]`; the CLI prints a YouTube link that
 starts at the cited second. Timestamps come from the database, never from the LLM.
 If the best match is too weak, or the model finds no answer, it says so instead of guessing.
