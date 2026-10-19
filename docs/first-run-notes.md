@@ -919,3 +919,12 @@ YouTube's `listening` message on load and reads `currentTime` from its `infoDeli
 `postMessage` calls (`seekTo`, `pauseVideo`, `playVideo`), so no YouTube script is loaded. Checked in a browser against
 the real player: 1:17 → +60 s → 2:18 → −10 s → 2:08, pause held the time still. The parser's 16 cases run in CI with
 Node. One bug caught by that test: "play the second one" matched the `S` of "S2" against the "s" of "second".
+
+**1-minute video (2026-10-19).** `docs/vidcite-demo.mp4` (61 s, 1.5 MB, 1280×800, captions burned in so it works muted,
+narration by an ElevenLabs voice, generated as one take and split into its 10 lines with Whisper word
+timestamps, since the `<break>` pauses came through as ~0.5 s and couldn't be told apart from sentence pauses). Recorded from headless Chrome's screencast against the live local server: real retrieval,
+Gemini answers, player and voice commands. Headless Chrome has no microphone, so for the voice scenes the recording
+fills the question box word by word and hands the text to the same `parseCommand` / `ask` path that speech
+recognition's final result uses; this is stated in the README. First take used the HNSW question, but both its
+citations resolved to the same second (4:16), so "play the second one" showed no jump; re-recorded with the Postgres
+question (1:13 and 1:39). The models were warmed with a question the confidence gate refuses, so no Gemini call.

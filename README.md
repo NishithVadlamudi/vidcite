@@ -7,9 +7,11 @@
 
 ![Animated walkthrough of vidcite: an answer with citation buttons, the embedded player jumping to each cited moment, a refusal for a question the talks don't cover, and the light theme](docs/demo.gif)
 
-**[Try the demo →](https://nishithvadlamudi.github.io/vidcite/)** · [How it works](#how-it-works) · [Results](#results) · [Decisions and what I measured](#decisions-and-what-i-measured) · [Run it yourself](#run-it-yourself)
+**[Try the demo →](https://nishithvadlamudi.github.io/vidcite/)** · [Watch the 1-minute video](https://nishithvadlamudi.github.io/vidcite/vidcite-demo.mp4) · [How it works](#how-it-works) · [Results](#results) · [Decisions and what I measured](#decisions-and-what-i-measured) · [Run it yourself](#run-it-yourself)
 
-*The demo replays real answers recorded during an eval run, so it needs no server or API key.*
+*The demo replays real answers recorded during an eval run, so it needs no server or API key. The video is a
+live session against the local server; the spoken questions are typed in for the recording, since the recording
+browser has no microphone, and handed to the same code the mic uses. Narration voice: ElevenLabs.*
 
 ## Results
 
