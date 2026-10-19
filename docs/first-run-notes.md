@@ -892,3 +892,12 @@ Recording it found two UX issues, both fixed in the live UI and the demo:
   The answer now sits above the questions and scrolls into view on click (phones).
 - **After a refusal, the player kept showing the previous answer's clip**, implying it related to the refused question.
   With no citations, the player now resets to "No moment to play: this answer has no citations".
+
+**UI redesign and theme toggle (2026-10-19).** The web UI was rebuilt in a true-black flat style (taste-skill app
+sheet): a sidebar of questions and talks, the ask bar in the top bar, the answer beside the player, and a "Where it's
+said" timeline per talk with each cited second marked. Its design check found three bugs, all fixed: the phone-only
+Menu button showed on desktop (a later rule of equal specificity overrode `display: none`), the Answer card stretched
+to the player's height leaving a 175 px blank band, and the demo note wrapped to three lines in the phone top bar.
+A light theme follows the system setting until the visitor picks one; the lime is darkened on white so timestamps stay
+readable. The README GIF (5 frames, 339 KB) and screenshot were re-taken with headless Chrome at 1280×800; the
+screenshot is a live answer from the local server (9.5 s).
