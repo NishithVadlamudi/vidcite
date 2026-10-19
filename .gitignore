@@ -2,3 +2,5 @@ data/
 .venv/
 __pycache__/
 .env
+.claude/
+.taste-skill/

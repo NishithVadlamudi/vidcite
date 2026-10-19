@@ -41,10 +41,6 @@ OUT = Path("docs/demo-data.json")
 PAGE = Path("docs/index.html")
 LIVE_UI = Path("api/static/index.html")
 REPO = "https://github.com/NishithVadlamudi/vidcite"
-GROUPS = [("PostgreSQL internals", "P8rrhZTPEAQ"), ("AI engineering", "A2QrRXCypm4"),
-          ("ChatGPT image tutorial", "EqEdnI3B23g"), ("Figma tutorial", "FTFaQWZBqQ8"), ("Not in the talks", None)]
-
-
 def recorded(question: str) -> tuple[dict, str]:
     for path in RUNS:
         for row in json.load(open(path))["rows"]:
@@ -59,76 +55,43 @@ def recorded(question: str) -> tuple[dict, str]:
 
 
 def build_page() -> str:
-    """docs/index.html from the live UI: banner + recorded questions instead of the ask box."""
+    """docs/index.html from the live UI: the question box becomes a note, the sidebar lists the
+    recorded questions, and the API code after the `// live only` marker is replaced."""
     s = LIVE_UI.read_text()
     reps = [
-        ('<title>vidcite</title>', '<title>vidcite demo</title>\n<meta name="description" content="Recorded demo of '
+        ("<title>vidcite</title>", '<title>vidcite demo</title>\n<meta name="description" content="Recorded demo of '
          'vidcite: answers about Creative Commons tech talks, cited to the second.">'),
-        ('  .error { color: #dc2626; }', '''  .error { color: #dc2626; }
-  .banner { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
-  .banner div { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
-  .banner a, footer a { color: var(--accent); }
-  .qs { display: grid; gap: 6px; }
-  .qs button { text-align: left; font-size: 14px; }
-  .qs button.active { border-color: var(--accent); color: var(--accent); }
-  .qs .group { font-size: 12px; color: var(--muted); margin: 8px 0 0; text-transform: uppercase; letter-spacing: .05em; }'''),
-        ("</header>", f'''</header>
-<div class="banner"><div><strong>Recorded demo.</strong> These are real answers vidcite produced during an evaluation run,
-  replayed here so the demo runs without a server. Pick a question; each citation jumps the player to the cited second.
-  For live questions, <a href="{REPO}#setup">run it locally</a> · <a href="{REPO}">source on GitHub</a>.</div></div>'''),
-        ('''    <form id="ask">
-      <input id="q" type="text" placeholder="e.g. Should I use HNSW for vector search?" autocomplete="off" required minlength="3" maxlength="500">
-      <button class="primary" id="go" type="submit">Ask</button>
-    </form>
-    <div class="examples" id="examples"></div>''', '''    <h2>Pick a question</h2>
-    <div class="qs" id="questions"></div>'''),
-        # The answer goes above the 12 questions; below them it was off-screen on a laptop.
-        ('''    <div id="result" aria-live="polite"></div>''', ""),
-        ('''    <h2>Pick a question</h2>''', '''    <div id="result" aria-live="polite"></div>
-    <h2 style="margin-top:18px">Pick a question</h2>'''),
-        ("credit belongs to the channels listed.</footer>", f'''credit belongs to the channels listed.
-  <a href="{REPO}">vidcite on GitHub</a> · <a href="{REPO}/blob/main/docs/first-run-notes.md">build and eval notes</a></footer>'''),
+        ("</style>", "  .demo-note { flex: 1; margin: 0; color: var(--muted); }\n  .demo-note a { color: var(--text); }\n"
+                     "  @media (max-width: 960px) { .demo-note .long { display: none; } }\n</style>"),
+        ('<p class="group" id="qgroup">Try asking</p>', '<p class="group" id="qgroup">Recorded answers</p>'),
+        ("Pick a question on the left or type your own.", "Pick a recorded question on the left."),
     ]
     for old, new in reps:
         if old not in s:
             raise SystemExit(f"live UI changed; update build_page(): {old[:60]!r}")
-        s = s.replace(old, new)
-    head, script = s.split("<script>", 1)
-    # fmt, el, play, answerNode and render are shared with the live UI; ask() and the
-    # /videos fetch after them are live-only.
-    shared = script[script.index("const $ = "):script.index("async function ask(question)")]
-    live_meta = '''`${r.search_only ? "search only" : r.found ? "answered" : "not found"} · top score ${r.top_score ?? "–"} · ${r.latency_ms} ms`'''
-    if live_meta not in shared:
-        raise SystemExit("live UI changed; update the meta line replacement in build_page()")
+        s = s.replace(old, new, 1)
+    a, b = s.find("<!-- ask -->"), s.find("<!-- /ask -->")
+    if a < 0 or b < 0:
+        raise SystemExit("live UI changed; the <!-- ask --> block is missing")
+    s = s[:a] + (f'<p class="demo-note">Recorded demo<span class="long">: real answers from an evaluation run, replayed without a server</span>. '
+                 f'<a href="{REPO}#setup">Run it live</a></p>') + s[b + len("<!-- /ask -->"):]
+    marker = s.find("// live only")
+    if marker < 0:
+        raise SystemExit("live UI changed; the // live only marker is missing")
     # Latency is left out: some recorded calls include Gemini retries during a busy period.
-    shared = shared.replace(live_meta, '''`recorded answer · ${r.found ? "answered" : "refused: not in the talks"} · top score ${r.top_score ?? "–"}`''')
-    demo_js = """
-const GROUPS = %s;
+    demo_js = """// recorded demo: answers replayed from demo-data.json (built by scripts/build_demo.py)
+var SHOW_LATENCY = false;
 fetch("demo-data.json").then((r) => r.json()).then((data) => {
-  const videoOf = (a) => a.response.citations[0]?.video_id ?? null;
-  const buttons = [];
-  for (const [label, vid] of GROUPS) {
-    const items = data.answers.filter((a) => videoOf(a) === vid);
-    if (!items.length) continue;
-    $("questions").append(el("p", { className: "group", textContent: label }));
-    for (const a of items) {
-      const b = el("button", { type: "button", textContent: a.question, onclick: () => {
-        buttons.forEach((x) => x.classList.toggle("active", x === b));
-        render(a.response);
-        $("result").scrollIntoView({ block: "nearest", behavior: "smooth" });  // phones: answer may be above the fold
-      } });
-      buttons.push(b); $("questions").append(b);
-    }
-  }
-  $("library").replaceChildren(...data.library.map((v) => el("li", {},
-    el("span", { textContent: v.channel ? `${v.title} · ${v.channel}` : v.title }),
-    el("span", { textContent: v.duration_s ? fmt(v.duration_s) : "" }))));
-}).catch(() => $("questions").replaceChildren(el("p", { className: "error", textContent: "Couldn't load the recorded answers." })));
+  renderLibrary(data.library);
+  questionList(data.answers.map((a) => a.question),
+    (q) => render(data.answers.find((a) => a.question === q).response, q));
+  $("questions").querySelector("button")?.click();  // open on a real answer, not an empty screen
+}).catch(() => $("questions").replaceChildren(el("li", { className: "quiet", textContent: "Couldn't load the recorded answers." })));
 </script>
 </body>
 </html>
-""" % json.dumps([list(g) for g in GROUPS])
-    return head + "<script>\n" + shared + demo_js
+"""
+    return s[:marker] + demo_js
 
 
 def main() -> None:
