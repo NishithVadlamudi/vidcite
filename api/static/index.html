@@ -150,7 +150,7 @@
     <!-- ask -->
     <form id="ask" role="search">
       <input id="q" type="text" placeholder="Ask about the talks, e.g. Should I use HNSW for vector search?" autocomplete="off" required minlength="3" maxlength="500" aria-label="Your question">
-      <button class="ghost mic" id="mic" type="button" aria-label="Ask by voice" title="Ask by voice" aria-pressed="false" hidden>
+      <button class="ghost mic" id="mic" type="button" aria-label="Ask by voice" title="Ask by voice, or say: play the second one, next, go back 10 seconds, pause" aria-pressed="false" hidden>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
       </button>
       <button class="pill" id="go" type="submit">Ask</button>
@@ -182,10 +182,13 @@ const fmt = (s) => {
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const talks = {};  // video_id -> {title, channel, duration_s}, filled by renderLibrary
 
+const YT = "https://www.youtube-nocookie.com";
 function play(c, autoplay = true) {
   const t = Math.floor(c.link_s);
-  const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(c.video_id)}?start=${t}&autoplay=${autoplay ? 1 : 0}&rel=0`;
+  const src = `${YT}/embed/${encodeURIComponent(c.video_id)}?start=${t}&autoplay=${autoplay ? 1 : 0}&rel=0&enablejsapi=1`;
   $("player").replaceChildren(el("iframe", { src, title: `${c.title} at ${fmt(t)}`,
+    // ask the player to report its time, so voice commands can seek relative to it
+    onload: (e) => e.target.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), YT),
     allow: "autoplay; encrypted-media; picture-in-picture", allowFullscreen: true }));
   document.querySelectorAll("[data-n]").forEach((b) => b.classList.toggle("active", b.dataset.n === String(c.n)));
   document.querySelectorAll("#library li").forEach((li) => li.classList.toggle("playing", li.dataset.id === c.video_id));
@@ -339,7 +342,7 @@ async function ask(question, spoken = false) {
       return;
     }
     if (!res.ok) throw new Error(`${res.status} ${(await res.json().catch(() => ({}))).detail ?? res.statusText}`);
-    const r = await res.json();
+    const r = lastAnswer = await res.json();
     render(r, question, !spoken);  // a spoken question hears its answer first, then the cited moment plays
     if (spoken) speak(r);
   } catch (e) {
@@ -362,6 +365,58 @@ function speak(r) {
 }
 document.addEventListener("pointerdown", () => { if (speaking) stopSpeaking(); }, true);  // any click or tap interrupts the reading
 
+// Voice commands: short phrases steer the player instead of asking a question.
+const NUMS = { one: 1, first: 1, two: 2, second: 2, to: 2, too: 2, three: 3, third: 3, four: 4, fourth: 4, for: 4,
+               five: 5, fifth: 5, six: 6, sixth: 6, ten: 10, fifteen: 15, twenty: 20, thirty: 30, a: 1, an: 1 };
+function parseCommand(text) {
+  const t = text.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().replace(/^(please |ok |okay |hey )?(vidcite )?/, "");
+  if (!t || t.split(" ").length > 7) return null;
+  const num = (w) => (/^\d+$/.test(w) ? +w : NUMS[w]);
+  if (/^(pause|stop|hold on|wait)$/.test(t)) return { type: "pause" };
+  if (/^(play|resume|continue|keep going|unpause)$/.test(t)) return { type: "resume" };
+  if (/^(replay|again|play (it |that )?again|start over)$/.test(t)) return { type: "step", by: 0 };
+  if (/^(go to |play )?(the )?next( one| moment| clip| source)?$/.test(t)) return { type: "step", by: 1 };
+  if (/^(go to |play )?(the )?(previous|last)( one| moment| clip| source)?$|^back one$/.test(t)) return { type: "step", by: -1 };
+  if (/^(go |skip |jump |move )?(back|backwards?|rewind|forward|ahead)\b/.test(t)) {
+    const m = t.match(/\b(\d+|[a-z]+) (second|minute)s?\b/);
+    const n = m ? num(m[1]) * (m[2] === "minute" ? 60 : 1) : 10;
+    return { type: "seek", by: (/back|rewind/.test(t) ? -1 : 1) * (n || 10) };
+  }
+  const m = t.match(/^(?:play|show|open|go to|jump to)(?: the)? (?:s ?(?=\d)|source |citation |moment |clip |number )?(\w+)(?: one| moment| source| clip| citation)?$/);
+  if (m && num(m[1])) return { type: "cite", n: num(m[1]) };
+  return null;
+}
+// end parseCommand
+
+let lastAnswer = null, playerTime = null;
+addEventListener("message", (e) => {
+  if (e.origin !== YT) return;
+  try { const d = JSON.parse(e.data); if (typeof d.info?.currentTime === "number") playerTime = d.info.currentTime; } catch {}
+});
+new MutationObserver(() => { playerTime = null; }).observe($("player"), { childList: true });  // a new clip: old time is stale
+
+function say(text) {
+  $("meta").textContent = text;
+  if (window.speechSynthesis) { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); }
+}
+function runCommand(cmd) {
+  const cites = lastAnswer?.citations ?? [];
+  const current = cites.find((c) => String(c.n) === document.querySelector("[data-n].active")?.dataset.n);
+  const frame = $("player").querySelector("iframe");
+  const send = (func, args = []) => frame.contentWindow.postMessage(JSON.stringify({ event: "command", func, args, id: 1, channel: "widget" }), YT);
+  if (cmd.type === "cite" || cmd.type === "step") {
+    if (!cites.length) return say("Ask a question first; there are no cited moments yet.");
+    const i = cmd.type === "cite" ? cites.findIndex((c) => c.n === cmd.n) : cites.indexOf(current ?? cites[0]) + cmd.by;
+    if (cmd.type === "cite" && i < 0) return say(`This answer has no source ${cmd.n}; it has ${cites.length}.`);
+    if (i < 0 || i >= cites.length) return say(cmd.by > 0 ? "That was the last cited moment." : "That was the first cited moment.");
+    return play(cites[i]);
+  }
+  if (!frame) return say("Nothing is playing yet.");
+  if (cmd.type === "pause") send("pauseVideo");
+  else if (cmd.type === "resume") send("playVideo");
+  else send("seekTo", [Math.max(0, (playerTime ?? current?.link_s ?? 0) + cmd.by), true]);
+}
+
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (Recognition) {
   const rec = new Recognition();
@@ -373,7 +428,7 @@ if (Recognition) {
   };
   rec.onresult = (e) => {
     $("q").value = [...e.results].map((x) => x[0].transcript).join("");
-    if (e.results[e.results.length - 1].isFinal) { const q = $("q").value.trim(); if (q.length >= 3) ask(q, true); }
+    if (e.results[e.results.length - 1].isFinal) { const q = $("q").value.trim(); const cmd = parseCommand(q); if (cmd) runCommand(cmd); else if (q.length >= 3) ask(q, true); }
   };
   rec.onend = () => setListening(false);
   rec.onerror = (e) => {

@@ -15,3 +15,4 @@ jobs:
       # The unit tests fake the database, models and LLM, so they need only numpy and pytest.
       - run: pip install numpy==2.5.4 pytest
       - run: python -m pytest -q
+      - run: node --test tests/voice_commands.test.mjs

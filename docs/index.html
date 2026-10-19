@@ -178,10 +178,13 @@ const fmt = (s) => {
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const talks = {};  // video_id -> {title, channel, duration_s}, filled by renderLibrary
 
+const YT = "https://www.youtube-nocookie.com";
 function play(c, autoplay = true) {
   const t = Math.floor(c.link_s);
-  const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(c.video_id)}?start=${t}&autoplay=${autoplay ? 1 : 0}&rel=0`;
+  const src = `${YT}/embed/${encodeURIComponent(c.video_id)}?start=${t}&autoplay=${autoplay ? 1 : 0}&rel=0&enablejsapi=1`;
   $("player").replaceChildren(el("iframe", { src, title: `${c.title} at ${fmt(t)}`,
+    // ask the player to report its time, so voice commands can seek relative to it
+    onload: (e) => e.target.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), YT),
     allow: "autoplay; encrypted-media; picture-in-picture", allowFullscreen: true }));
   document.querySelectorAll("[data-n]").forEach((b) => b.classList.toggle("active", b.dataset.n === String(c.n)));
   document.querySelectorAll("#library li").forEach((li) => li.classList.toggle("playing", li.dataset.id === c.video_id));

@@ -200,6 +200,10 @@ confidence gate.
 **Voice:** in Chrome, Edge or Safari, the mic button next to Ask takes a spoken question, reads the answer
 aloud, then plays the first cited moment. It uses the browser's own speech recognition and synthesis, so
 nothing is installed; any click stops the reading. (Chrome sends the audio to Google for recognition.)
+Short phrases steer the player instead of asking: "play the second one", "next", "previous", "replay",
+"go back 10 seconds", "skip ahead a minute", "pause", "play". Anything else is asked as a question. The player is
+controlled through the YouTube embed's `postMessage` interface; the parser is tested with
+`node --test tests/voice_commands.test.mjs`.
 
 Each answer cites its sources as `[S1]`, `[S2]`; the CLI prints a YouTube link that
 starts at the cited second. Timestamps come from the database, never from the LLM.

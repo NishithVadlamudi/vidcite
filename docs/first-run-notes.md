@@ -910,3 +910,12 @@ clip). No new dependencies: the Web Speech API on both sides. The recorded demo 
 Two layout bugs found while checking: the mic's `padding: 0` lost to the later `.ghost` rule (the icon rendered 4 px
 wide), and the phone top bar overflowed because the form couldn't shrink below its input's natural width (`min-width: 0`).
 Not yet measured: recognition accuracy on tech terms like "HNSW" or "pgvector".
+
+**Voice navigation commands (2026-10-19).** Short spoken phrases now steer the player instead of being asked as
+questions: play the nth source, next / previous / replay, go back or skip ahead N seconds or minutes, pause, play.
+Anything longer than 7 words, or not matching, is asked as before, so questions that mention "second" or "play" still
+go to the model (tested). Seeking needs the player's current time: the embed gets `enablejsapi=1`, the page sends
+YouTube's `listening` message on load and reads `currentTime` from its `infoDelivery` updates; commands go back as
+`postMessage` calls (`seekTo`, `pauseVideo`, `playVideo`), so no YouTube script is loaded. Checked in a browser against
+the real player: 1:17 → +60 s → 2:18 → −10 s → 2:08, pause held the time still. The parser's 16 cases run in CI with
+Node. One bug caught by that test: "play the second one" matched the `S` of "S2" against the "s" of "second".
